@@ -8,6 +8,7 @@ import { StashProvider } from './providers/stashProvider';
 import { ChangelistManager } from './managers/changelistManager';
 import { ShelfManager } from './managers/shelfManager';
 import { CommitDialog } from './ui/commitDialog';
+import { CommitPanelProvider } from './ui/commitPanelProvider';
 import { FileSystemWatcher } from './watchers/fileSystemWatcher';
 import { CommandRegistry } from './commands/commandRegistry';
 
@@ -85,6 +86,14 @@ export async function activate(context: vscode.ExtensionContext) {
             localChangesProvider
         );
 
+        const commitPanelProvider = new CommitPanelProvider(
+            context,
+            gitService,
+            changelistManager,
+            localChangesProvider,
+            commitDialog
+        );
+
         // Register all commands
         const commandRegistry = new CommandRegistry(
             context,
@@ -107,7 +116,9 @@ export async function activate(context: vscode.ExtensionContext) {
             shelfView,
             branchesView,
             stashView,
-            fileWatcher
+            fileWatcher,
+            commitPanelProvider,
+            vscode.window.registerWebviewViewProvider(CommitPanelProvider.viewId, commitPanelProvider)
         );
 
         vscode.window.showInformationMessage('ViGit: Ready for Git version control!');

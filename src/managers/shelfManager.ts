@@ -104,21 +104,14 @@ export class ShelfManager {
         }
     }
 
-    async unshelveChanges(id: string, removeAfterApply: boolean = false): Promise<void> {
+    async unshelveChanges(id: string, removeAfterApply: boolean = false): Promise<ShelvedChange> {
         const shelvedChange = this.shelvedChanges.get(id);
         if (!shelvedChange) {
             throw new Error('Shelved change not found');
         }
 
         try {
-            const shelfFilePath = this.getShelfFilePath(id);
-            
-            if (!fs.existsSync(shelfFilePath)) {
-                throw new Error('Shelf file not found');
-            }
-
-            // Apply the patch
-            const patch = fs.readFileSync(shelfFilePath, 'utf8');
+            const patch = this.getPatchContent(id);
             
             // Write patch to temp file and apply
             const tempPatchFile = path.join(this.workspaceRoot, '.vigit-temp.patch');
@@ -148,6 +141,7 @@ export class ShelfManager {
             }
 
             vscode.window.showInformationMessage(`Unshelved: ${shelvedChange.name}`);
+            return shelvedChange;
         } catch (error) {
             throw new Error(`Failed to unshelve changes: ${error}`);
         }
@@ -218,6 +212,14 @@ export class ShelfManager {
         this.saveShelvedChanges();
 
         return shelvedChange;
+    }
+
+    getPatchContent(id: string): string {
+        const shelfFilePath = this.getShelfFilePath(id);
+        if (!fs.existsSync(shelfFilePath)) {
+            throw new Error('Shelf file not found');
+        }
+        return fs.readFileSync(shelfFilePath, 'utf8');
     }
 }
 
