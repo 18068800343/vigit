@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
-import { GitService } from '../services/gitService';
+import * as path from 'path';
+import { GitService, GitStatus } from '../services/gitService';
 import { ChangelistManager } from '../managers/changelistManager';
-import { ShelfManager } from '../managers/shelfManager';
+import { ShelfManager, ShelvedChange } from '../managers/shelfManager';
 import { LocalChangesProvider } from '../providers/localChangesProvider';
 import { GitLogProvider } from '../providers/gitLogProvider';
 import { ShelfProvider } from '../providers/shelfProvider';
@@ -61,17 +62,27 @@ export class CommandRegistry {
         this.register('vigit.revertFile', (item: any) => this.revertFile(item));
         this.register('vigit.stageFile', (item: any) => this.stageFile(item));
         this.register('vigit.unstageFile', (item: any) => this.unstageFile(item));
+        this.register('vigit.showDiffNewTab', (filePath: string, staged: boolean) =>
+            this.showDiffInNewTab(filePath, staged));
+        this.register('vigit.commitFile', (item: any) => this.commitFile(item));
+        this.register('vigit.jumpToSource', (item: any) => this.jumpToSource(item));
+        this.register('vigit.copyPatchToClipboard', (item: any) => this.copyPatchToClipboard(item));
+        this.register('vigit.createPatchFromLocalChanges', (item: any) => this.createPatchFromLocalChanges(item));
+        this.register('vigit.showLocalChangesAsUml', (item: any) => this.showLocalChangesAsUml(item));
+        this.register('vigit.deleteWorkingTreeFile', (item: any) => this.deleteWorkingTreeFile(item));
 
         // Changelist commands
         this.register('vigit.newChangelist', () => this.newChangelist());
         this.register('vigit.moveToChangelist', (item: any) => this.moveToChangelist(item));
         this.register('vigit.deleteChangelist', (item: any) => this.deleteChangelist(item));
         this.register('vigit.setActiveChangelist', (item: any) => this.setActiveChangelist(item));
+        this.register('vigit.editChangelist', (item: any) => this.editChangelist(item));
 
         // Shelf commands
         this.register('vigit.shelveChanges', () => this.shelveChanges());
         this.register('vigit.unshelveChanges', (item: any) => this.unshelveChanges(item));
         this.register('vigit.deleteShelvedChanges', (item: any) => this.deleteShelvedChanges(item));
+        this.register('vigit.showShelvedDiff', (item: any) => this.showShelvedDiff(item));
 
         // Stash commands
         this.register('vigit.stashSave', () => this.stashSave());
@@ -122,7 +133,10 @@ export class CommandRegistry {
     }
 
     private async commit(): Promise<void> {
-        await this.commitDialog.showCommitDialog(false);
+        const focused = await this.focusCommitPanel();
+        if (!focused) {
+            await this.commitDialog.showCommitDialog(false);
+        }
     }
 
     private async commitAndPush(): Promise<void> {
@@ -132,6 +146,17 @@ export class CommandRegistry {
     private async showDiff(filePath: string, staged: boolean = false): Promise<void> {
         try {
             await DiffViewHelper.showDiff(this.gitService, filePath, staged);
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to show diff: ${error}`);
+        }
+    }
+
+    private async showDiffInNewTab(filePath: string, staged: boolean = false): Promise<void> {
+        try {
+            await DiffViewHelper.showDiff(this.gitService, filePath, staged, {
+                viewColumn: vscode.ViewColumn.Beside,
+                preview: false
+            });
         } catch (error) {
             vscode.window.showErrorMessage(`Failed to show diff: ${error}`);
         }
@@ -182,6 +207,128 @@ export class CommandRegistry {
             await this.localChangesProvider.refresh();
         } catch (error) {
             vscode.window.showErrorMessage(`Failed to unstage: ${error}`);
+        }
+    }
+
+    private async commitFile(item: any): Promise<void> {
+        const files = this.collectFilesFromItem(item);
+        if (files.length === 0) {
+            vscode.window.showWarningMessage('Select a file or changelist to commit');
+            return;
+        }
+
+        await this.commitDialog.commitFiles(files, {
+            changelistId: item?.changelistId
+        });
+    }
+
+    private async jumpToSource(item: any): Promise<void> {
+        const filePath = this.collectFilesFromItem(item)[0];
+        if (!filePath) {
+            return;
+        }
+
+        try {
+            const document = await vscode.workspace.openTextDocument(filePath);
+            await vscode.window.showTextDocument(document, { preview: false });
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to open file: ${error}`);
+        }
+    }
+
+    private async deleteWorkingTreeFile(item: any): Promise<void> {
+        const filePath = item?.filePath;
+        if (!filePath) {
+            return;
+        }
+
+        const confirm = await vscode.window.showWarningMessage(
+            `Delete "${path.basename(filePath)}" from disk?`,
+            { modal: true },
+            'Delete'
+        );
+
+        if (confirm !== 'Delete') {
+            return;
+        }
+
+        try {
+            await vscode.workspace.fs.delete(vscode.Uri.file(filePath));
+            if (item?.changelistId) {
+                this.changelistManager.removeFileFromChangelist(filePath, item.changelistId);
+            }
+            await this.localChangesProvider.refresh();
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to delete file: ${error}`);
+        }
+    }
+
+    private async copyPatchToClipboard(item: any): Promise<void> {
+        const files = this.collectFilesFromItem(item);
+        if (files.length === 0) {
+            vscode.window.showWarningMessage('No changes to copy');
+            return;
+        }
+
+        try {
+            const patch = await this.generatePatchForFiles(files);
+            if (!patch.trim()) {
+                vscode.window.showInformationMessage('No differences found for selected files');
+                return;
+            }
+            await vscode.env.clipboard.writeText(patch);
+            vscode.window.showInformationMessage('Patch copied to clipboard');
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to copy patch: ${error}`);
+        }
+    }
+
+    private async createPatchFromLocalChanges(item: any): Promise<void> {
+        const files = this.collectFilesFromItem(item);
+        if (files.length === 0) {
+            vscode.window.showWarningMessage('No changes to export');
+            return;
+        }
+
+        const defaultPath = path.join(this.gitService.getWorkspaceRoot(), 'changes.patch');
+        const uri = await vscode.window.showSaveDialog({
+            defaultUri: vscode.Uri.file(defaultPath),
+            filters: {
+                Patch: ['patch', 'diff'],
+                All: ['*']
+            }
+        });
+
+        if (!uri) {
+            return;
+        }
+
+        try {
+            const patch = await this.generatePatchForFiles(files);
+            await vscode.workspace.fs.writeFile(uri, Buffer.from(patch, 'utf8'));
+            vscode.window.showInformationMessage(`Patch saved to ${uri.fsPath}`);
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to save patch: ${error}`);
+        }
+    }
+
+    private async showLocalChangesAsUml(item: any): Promise<void> {
+        const files = this.collectFilesFromItem(item);
+        if (files.length === 0) {
+            vscode.window.showWarningMessage('No files selected');
+            return;
+        }
+
+        try {
+            const status = this.localChangesProvider.getGitStatus() ?? await this.gitService.getStatus();
+            const uml = this.buildUmlDiagram(files, status);
+            const doc = await vscode.workspace.openTextDocument({
+                content: uml,
+                language: 'plantuml'
+            });
+            await vscode.window.showTextDocument(doc, { preview: false });
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to render UML: ${error}`);
         }
     }
 
@@ -270,6 +417,45 @@ export class CommandRegistry {
         }
     }
 
+    private async editChangelist(item: any): Promise<void> {
+        if (!item || !item.changelistId) {
+            return;
+        }
+
+        const changelist = this.changelistManager.getChangelist(item.changelistId);
+        if (!changelist) {
+            return;
+        }
+
+        const newName = await vscode.window.showInputBox({
+            prompt: 'Rename changelist',
+            value: changelist.name,
+            validateInput: (value) => {
+                if (!value || value.trim().length === 0) {
+                    return 'Name cannot be empty';
+                }
+                return null;
+            }
+        });
+
+        if (!newName) {
+            return;
+        }
+
+        const description = await vscode.window.showInputBox({
+            prompt: 'Update changelist description (optional)',
+            value: changelist.description ?? '',
+            placeHolder: 'Leave empty to clear description'
+        });
+
+        this.changelistManager.updateChangelist(item.changelistId, {
+            name: newName.trim(),
+            description: description !== undefined ? description.trim() || undefined : changelist.description
+        });
+
+        await this.localChangesProvider.refresh();
+    }
+
     private async shelveChanges(): Promise<void> {
         const activeChangelist = this.changelistManager.getActiveChangelist();
         if (!activeChangelist || activeChangelist.files.length === 0) {
@@ -347,10 +533,11 @@ export class CommandRegistry {
         }
 
         try {
-            await this.shelfManager.unshelveChanges(item.shelvedChange.id, removeAfter);
+            const restored = await this.shelfManager.unshelveChanges(item.shelvedChange.id, removeAfter);
 
-            if (targetChangelistId && item.shelvedChange.files) {
-                for (const file of item.shelvedChange.files) {
+            if (targetChangelistId) {
+                const files = this.getFilesFromShelvedChange(restored);
+                for (const file of files) {
                     this.changelistManager.addFileToChangelist(file, targetChangelistId);
                 }
             }
@@ -377,6 +564,26 @@ export class CommandRegistry {
             await this.shelfManager.deleteShelvedChange(item.shelvedChange.id);
             this.shelfProvider.refresh();
             vscode.window.showInformationMessage('Shelved changes deleted');
+        }
+    }
+
+    private async showShelvedDiff(item: any): Promise<void> {
+        if (!item || !item.shelvedChange) {
+            return;
+        }
+
+        try {
+            const patch = this.shelfManager.getPatchContent(item.shelvedChange.id);
+            const doc = await vscode.workspace.openTextDocument({
+                content: patch,
+                language: 'diff'
+            });
+            await vscode.window.showTextDocument(doc, {
+                preview: true,
+                viewColumn: vscode.ViewColumn.Beside
+            });
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to show shelf diff: ${error}`);
         }
     }
 
@@ -813,6 +1020,135 @@ export class CommandRegistry {
             }
         } else {
             vscode.window.showWarningMessage('No active editor');
+        }
+    }
+
+    private collectFilesFromItem(item: any): string[] {
+        if (!item) {
+            return [];
+        }
+
+        if (Array.isArray(item)) {
+            return item.flatMap(child => this.collectFilesFromItem(child));
+        }
+
+        if (item.filePath) {
+            return [item.filePath];
+        }
+
+        if (item.folderPath && item.changelistId) {
+            const folder = this.normalizeFsPath(item.folderPath);
+            return this.changelistManager
+                .getFilesInChangelist(item.changelistId)
+                .filter(file => this.normalizeFsPath(file).startsWith(folder));
+        }
+
+        if (item.folderPath) {
+            const status = this.localChangesProvider.getGitStatus();
+            if (status) {
+                const folder = this.normalizeFsPath(item.folderPath);
+                return status.untracked
+                    .map(rel => path.join(this.gitService.getWorkspaceRoot(), rel))
+                    .filter(file => this.normalizeFsPath(file).startsWith(folder));
+            }
+        }
+
+        if (item.changelistId) {
+            return this.changelistManager.getFilesInChangelist(item.changelistId);
+        }
+
+        if (item.children && Array.isArray(item.children)) {
+            return item.children.flatMap((child: any) => this.collectFilesFromItem(child));
+        }
+
+        return [];
+    }
+
+    private normalizeFsPath(filePath: string): string {
+        return path.normalize(filePath);
+    }
+
+    private async focusCommitPanel(): Promise<boolean> {
+        try {
+            await vscode.commands.executeCommand('workbench.view.extension.vigit-container');
+            await vscode.commands.executeCommand('vigit.commitPanel.focus');
+            return true;
+        } catch (error) {
+            console.warn('ViGit: unable to focus commit panel, falling back to dialog', error);
+            return false;
+        }
+    }
+
+    private async generatePatchForFiles(files: string[]): Promise<string> {
+        const uniqueFiles = Array.from(new Set(files));
+        const diffs = await Promise.all(uniqueFiles.map(async file => {
+            const diff = await this.gitService.getDiff(file);
+            return diff;
+        }));
+
+        return diffs.filter(Boolean).join('\n');
+    }
+
+    private buildUmlDiagram(files: string[], status: GitStatus): string {
+        const workspaceRoot = this.gitService.getWorkspaceRoot();
+        const title = `Local Changes (${files.length} file${files.length !== 1 ? 's' : ''})`;
+        const lines: string[] = ['@startuml', `title ${title}`, `package "${path.basename(workspaceRoot)}" {`];
+
+        files.forEach((file, index) => {
+            const relative = path.relative(workspaceRoot, file).replace(/\\/g, '/');
+            const stereotype = this.getStatusLabelForFile(relative, status);
+            const alias = `F${index}`;
+            lines.push(`  class "${relative}" as ${alias} <<${stereotype}>>`);
+        });
+
+        lines.push('}');
+        lines.push('@enduml');
+        return lines.join('\n');
+    }
+
+    private getStatusLabelForFile(relativePath: string, status: GitStatus): string {
+        const normalized = relativePath.replace(/\\/g, '/');
+
+        if (status.untracked.includes(normalized)) {
+            return 'Untracked';
+        }
+        if (status.deleted.includes(normalized)) {
+            return 'Deleted';
+        }
+        if (status.modified.includes(normalized)) {
+            return 'Modified';
+        }
+        if (status.renamed.some(entry => entry.to === normalized || entry.from === normalized)) {
+            return 'Renamed';
+        }
+        if (status.staged && status.staged.includes(normalized)) {
+            return 'Staged';
+        }
+        return 'Changed';
+    }
+
+    private getFilesFromShelvedChange(change: ShelvedChange): string[] {
+        if (change.files && change.files.length > 0) {
+            return change.files;
+        }
+
+        try {
+            const patch = this.shelfManager.getPatchContent(change.id);
+            const files = new Set<string>();
+            const regex = /^\+\+\+\s+b\/(.+)$/gm;
+            let match: RegExpExecArray | null;
+
+            while ((match = regex.exec(patch)) !== null) {
+                const relative = match[1].trim();
+                if (!relative || relative === '/dev/null') {
+                    continue;
+                }
+                files.add(path.join(this.gitService.getWorkspaceRoot(), relative.replace(/\//g, path.sep)));
+            }
+
+            return Array.from(files);
+        } catch {
+            return [];
         }
     }
 }

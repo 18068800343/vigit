@@ -227,6 +227,26 @@ export class ChangelistManager {
         this.saveChangelists();
     }
 
+    updateChangelist(
+        id: string,
+        updates: Partial<Pick<Changelist, 'name' | 'description'>>
+    ): boolean {
+        const changelist = this.changelists.get(id);
+        if (!changelist) {
+            return false;
+        }
+
+        if (typeof updates.name === 'string') {
+            changelist.name = updates.name;
+        }
+        if (typeof updates.description === 'string') {
+            changelist.description = updates.description;
+        }
+
+        this.saveChangelists();
+        return true;
+    }
+
     getFilesInChangelist(changelistId: string): string[] {
         const changelist = this.changelists.get(changelistId);
         return changelist ? [...changelist.files] : [];

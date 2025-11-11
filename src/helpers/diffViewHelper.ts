@@ -6,7 +6,8 @@ export class DiffViewHelper {
     static async showDiff(
         gitService: GitService,
         filePath: string,
-        staged: boolean = false
+        staged: boolean = false,
+        options?: { viewColumn?: vscode.ViewColumn; preview?: boolean }
     ): Promise<void> {
         try {
             const fileName = path.basename(filePath);
@@ -61,8 +62,8 @@ export class DiffViewHelper {
                 currentUri,
                 `${originalTitle} ↔ ${fileName} (Working Directory)`,
                 {
-                    preview: true,
-                    viewColumn: vscode.ViewColumn.Active
+                    preview: options?.preview ?? true,
+                    viewColumn: options?.viewColumn ?? vscode.ViewColumn.Active
                 }
             );
 

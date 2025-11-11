@@ -33,12 +33,27 @@ export class BranchTreeItem extends vscode.TreeItem {
             return '';
         }
 
-        return [
+        const lines: string[] = [
             `Branch: ${this.branch.name}`,
             `Commit: ${this.branch.commit}`,
-            this.branch.current ? 'Current branch' : '',
             this.branch.remote ? 'Remote branch' : 'Local branch'
-        ].filter(s => s).join('\n');
+        ];
+
+        if (this.branch.current) {
+            lines.push('Current branch');
+        }
+        if (this.branch.upstream) {
+            lines.push(`Upstream: ${this.branch.upstream}`);
+        }
+        if (typeof this.branch.ahead === 'number' || typeof this.branch.behind === 'number') {
+            const ahead = this.branch.ahead ?? 0;
+            const behind = this.branch.behind ?? 0;
+            if (ahead > 0 || behind > 0) {
+                lines.push(`Ahead/Behind: ${ahead}/${behind}`);
+            }
+        }
+
+        return lines.filter(Boolean).join('\n');
     }
 
     private getIcon(): vscode.ThemeIcon {
@@ -99,9 +114,11 @@ export class BranchesProvider implements vscode.TreeDataProvider<BranchTreeItem>
                         ? branch.name.replace('remotes/', '')
                         : branch.name;
                     
-                    const label = branch.current 
+                    const tracking = this.formatTracking(branch);
+                    const labelCore = branch.current 
                         ? `${displayName} (current)`
                         : displayName;
+                    const label = tracking ? `${labelCore} ${tracking}` : labelCore;
 
                     return new BranchTreeItem(
                         label,
@@ -142,6 +159,22 @@ export class BranchesProvider implements vscode.TreeDataProvider<BranchTreeItem>
 
     getBranches(): GitBranch[] {
         return this.branches;
+    }
+
+    private formatTracking(branch: GitBranch): string {
+        if (branch.remote) {
+            return '';
+        }
+
+        const parts: string[] = [];
+        if (branch.ahead && branch.ahead > 0) {
+            parts.push(`↑${branch.ahead}`);
+        }
+        if (branch.behind && branch.behind > 0) {
+            parts.push(`↓${branch.behind}`);
+        }
+
+        return parts.length > 0 ? `[${parts.join(' ')}]` : '';
     }
 }
 
