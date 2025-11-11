@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import simpleGit, { SimpleGit, StatusResult, LogResult, DiffResult, BranchSummary } from 'simple-git';
+import simpleGit, { SimpleGit, StatusResult, LogResult, DiffResult, BranchSummary, TagResult, RemoteWithRefs } from 'simple-git';
 import * as path from 'path';
 
 export interface GitStatus {
@@ -110,6 +110,14 @@ export class GitService {
     async revertFile(filePath: string): Promise<void> {
         const relativePath = path.relative(this.workspaceRoot, filePath);
         await this.git.checkout(['--', relativePath]);
+    }
+
+    async revertPaths(filePaths: string[]): Promise<void> {
+        if (filePaths.length === 0) {
+            return;
+        }
+        const relativePaths = filePaths.map(p => path.relative(this.workspaceRoot, p));
+        await this.git.checkout(['--', ...relativePaths]);
     }
 
     async commit(message: string, files?: string[]): Promise<void> {
@@ -257,6 +265,11 @@ export class GitService {
         return branches;
     }
 
+    async getTags(): Promise<string[]> {
+        const tagResult: TagResult = await this.git.tags();
+        return tagResult.all;
+    }
+
     async getCurrentBranch(): Promise<string> {
         const summary = await this.git.branch();
         return summary.current;
@@ -288,6 +301,14 @@ export class GitService {
 
     async rebase(branchName: string): Promise<void> {
         await this.git.rebase([branchName]);
+    }
+
+    async createTag(tagName: string, startPoint?: string): Promise<void> {
+        if (startPoint) {
+            await this.git.raw(['tag', tagName, startPoint]);
+        } else {
+            await this.git.addTag(tagName);
+        }
     }
 
     async cherryPick(commitHash: string): Promise<void> {
@@ -365,6 +386,22 @@ export class GitService {
         } else {
             return await this.git.diff([branchName]);
         }
+    }
+
+    async getRemotes(): Promise<RemoteWithRefs[]> {
+        return await this.git.getRemotes(true);
+    }
+
+    async addRemote(name: string, url: string): Promise<void> {
+        await this.git.addRemote(name, url);
+    }
+
+    async removeRemote(name: string): Promise<void> {
+        await this.git.removeRemote(name);
+    }
+
+    async updateRemote(name: string, url: string): Promise<void> {
+        await this.git.remote(['set-url', name, url]);
     }
 
     private resolveStashDate(entry: any): Date {

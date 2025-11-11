@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import { promises as fs } from 'fs';
 import { GitService, GitStatus, GitBranch } from '../services/gitService';
 import { ChangelistManager } from '../managers/changelistManager';
 import { ShelfManager, ShelvedChange } from '../managers/shelfManager';
@@ -59,6 +60,8 @@ export class CommandRegistry {
         // Commit commands
         this.register('vigit.commit', () => this.commit());
         this.register('vigit.commitAndPush', () => this.commitAndPush());
+        this.register('vigit.commitDirectory', (resource?: vscode.Uri, resources?: vscode.Uri[]) => 
+            this.commitDirectory(resource, resources));
 
         // File commands
         this.register('vigit.showDiff', (filePath: string, staged: boolean) => 
@@ -66,6 +69,8 @@ export class CommandRegistry {
         this.register('vigit.revertFile', (item: any) => this.revertFile(item));
         this.register('vigit.stageFile', (item: any) => this.stageFile(item));
         this.register('vigit.unstageFile', (item: any) => this.unstageFile(item));
+        this.register('vigit.stagePath', (resource?: vscode.Uri, resources?: vscode.Uri[]) => 
+            this.stagePath(resource, resources));
         this.register('vigit.showDiffNewTab', (filePath: string, staged: boolean) =>
             this.showDiffInNewTab(filePath, staged));
         this.register('vigit.commitFile', (item: any) => this.commitFile(item));
@@ -74,6 +79,11 @@ export class CommandRegistry {
         this.register('vigit.createPatchFromLocalChanges', (item: any) => this.createPatchFromLocalChanges(item));
         this.register('vigit.showLocalChangesAsUml', (item: any) => this.showLocalChangesAsUml(item));
         this.register('vigit.deleteWorkingTreeFile', (item: any) => this.deleteWorkingTreeFile(item));
+        this.register('vigit.openGitExclude', () => this.openGitExclude());
+        this.register('vigit.showPathDiff', (resource?: vscode.Uri) => this.showPathDiff(resource));
+        this.register('vigit.compareWithRevision', (resource?: vscode.Uri) => this.compareWithRevision(resource));
+        this.register('vigit.rollbackPath', (resource?: vscode.Uri, resources?: vscode.Uri[]) => 
+            this.rollbackPath(resource, resources));
 
         // Changelist commands
         this.register('vigit.newChangelist', () => this.newChangelist());
@@ -108,6 +118,8 @@ export class CommandRegistry {
         this.register('vigit.deleteBranch', (item: any) => this.deleteBranch(item));
         this.register('vigit.mergeBranch', (item: any) => this.mergeBranch(item));
         this.register('vigit.rebaseBranch', (item: any) => this.rebaseBranch(item));
+        this.register('vigit.openBranchesView', () => this.openBranchesView());
+        this.register('vigit.createTag', () => this.createTag());
 
         // Git operations
         this.register('vigit.pull', () => this.pull());
@@ -115,7 +127,11 @@ export class CommandRegistry {
         this.register('vigit.fetch', () => this.fetch());
         this.register('vigit.cherryPick', () => this.cherryPick());
         this.register('vigit.resetHead', () => this.resetHead());
-        this.register('vigit.compareWithBranch', () => this.compareWithBranch());
+        this.register('vigit.compareWithBranch', (resource?: vscode.Uri, resources?: vscode.Uri[]) => 
+            this.compareWithBranch(resource, resources));
+        this.register('vigit.unstashChanges', () => this.unstashChanges());
+        this.register('vigit.manageRemotes', () => this.manageRemotes());
+        this.register('vigit.cloneRepository', () => this.cloneRepository());
     }
 
     private register(command: string, callback: (...args: any[]) => any): void {
@@ -146,6 +162,22 @@ export class CommandRegistry {
 
     private async commitAndPush(): Promise<void> {
         await this.commitDialog.showCommitDialog(true);
+    }
+
+    private async commitDirectory(resource?: vscode.Uri, resources?: vscode.Uri[]): Promise<void> {
+        const target = this.resolveResource(resource, resources) ?? vscode.Uri.file(this.gitService.getWorkspaceRoot());
+        const targetPath = target.fsPath;
+        const files = this.changelistManager.getFilesUnderPath(targetPath);
+
+        if (files.length === 0) {
+            vscode.window.showWarningMessage('No tracked changes under the selected path');
+            return;
+        }
+
+        const label = path.basename(targetPath) || targetPath;
+        await this.commitDialog.commitFiles(files, {
+            title: `Commit message for "${label}"`
+        });
     }
 
     private async showDiff(filePath: string, staged: boolean = false): Promise<void> {
@@ -215,6 +247,22 @@ export class CommandRegistry {
         }
     }
 
+    private async stagePath(resource?: vscode.Uri, resources?: vscode.Uri[]): Promise<void> {
+        const targets = this.resolveResourceArray(resource, resources);
+        if (targets.length === 0) {
+            vscode.window.showWarningMessage('No path selected to add');
+            return;
+        }
+
+        try {
+            await this.gitService.stageFiles(targets.map(uri => uri.fsPath));
+            await this.localChangesProvider.refresh();
+            vscode.window.showInformationMessage(`Added ${targets.length} path${targets.length > 1 ? 's' : ''}`);
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to add paths: ${error}`);
+        }
+    }
+
     private async commitFile(item: any): Promise<void> {
         const files = this.collectFilesFromItem(item);
         if (files.length === 0) {
@@ -265,6 +313,125 @@ export class CommandRegistry {
             await this.localChangesProvider.refresh();
         } catch (error) {
             vscode.window.showErrorMessage(`Failed to delete file: ${error}`);
+        }
+    }
+
+    private async openGitExclude(): Promise<void> {
+        const excludePath = path.join(this.gitService.getWorkspaceRoot(), '.git', 'info', 'exclude');
+        try {
+            await fs.mkdir(path.dirname(excludePath), { recursive: true });
+            try {
+                await fs.access(excludePath);
+            } catch {
+                await fs.writeFile(excludePath, '# Ignore additional files locally\n');
+            }
+
+            const doc = await vscode.workspace.openTextDocument(excludePath);
+            await vscode.window.showTextDocument(doc, { preview: false });
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to open .git/info/exclude: ${error}`);
+        }
+    }
+
+    private async showPathDiff(resource?: vscode.Uri): Promise<void> {
+        const target = resource ?? vscode.window.activeTextEditor?.document.uri;
+        if (!target) {
+            vscode.window.showWarningMessage('No file or folder selected to show diff');
+            return;
+        }
+
+        try {
+            const diff = await this.gitService.getDiff(target.fsPath);
+            if (!diff.trim()) {
+                vscode.window.showInformationMessage('No differences for the selected path');
+                return;
+            }
+
+            const doc = await vscode.workspace.openTextDocument({
+                content: diff,
+                language: 'diff'
+            });
+
+            await vscode.window.showTextDocument(doc, {
+                preview: true,
+                viewColumn: vscode.ViewColumn.Beside
+            });
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to show diff: ${error}`);
+        }
+    }
+
+    private async compareWithRevision(resource?: vscode.Uri): Promise<void> {
+        const commits = await this.gitService.getLog(50);
+        if (commits.length === 0) {
+            vscode.window.showWarningMessage('No commits available to compare');
+            return;
+        }
+
+        const items = commits.map(commit => ({
+            label: `${commit.abbrevHash} ${commit.message}`,
+            description: `${commit.author} · ${commit.date.toLocaleString()}`,
+            commit
+        }));
+
+        const selected = await vscode.window.showQuickPick(items, {
+            placeHolder: 'Select a revision to compare with'
+        });
+
+        if (!selected) {
+            return;
+        }
+
+        const targetPath = resource?.fsPath ?? vscode.window.activeTextEditor?.document.uri.fsPath;
+
+        try {
+            const diff = await this.gitService.compareWithBranch(selected.commit.hash, targetPath);
+            if (!diff.trim()) {
+                vscode.window.showInformationMessage('No differences for the selected revision');
+                return;
+            }
+
+            const doc = await vscode.workspace.openTextDocument({
+                content: diff,
+                language: 'diff'
+            });
+
+            await vscode.window.showTextDocument(doc, {
+                preview: true,
+                viewColumn: vscode.ViewColumn.Beside
+            });
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to compare: ${error}`);
+        }
+    }
+
+    private async rollbackPath(resource?: vscode.Uri, resources?: vscode.Uri[]): Promise<void> {
+        const targets = this.resolveResourceArray(resource, resources);
+        if (targets.length === 0) {
+            vscode.window.showWarningMessage('No path selected to roll back');
+            return;
+        }
+
+        const label = targets.length === 1
+            ? path.basename(targets[0].fsPath) || targets[0].fsPath
+            : `${targets.length} paths`;
+
+        const confirm = await vscode.window.showWarningMessage(
+            `Revert changes in ${label}?`,
+            { modal: true },
+            'Rollback'
+        );
+
+        if (confirm !== 'Rollback') {
+            return;
+        }
+
+        try {
+            await this.gitService.revertPaths(targets.map(uri => uri.fsPath));
+            await this.refresh();
+            vscode.window.showInformationMessage(`Reverted ${label}`);
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to rollback: ${error}`);
         }
     }
 
@@ -691,6 +858,53 @@ export class CommandRegistry {
         }
     }
 
+    private async unstashChanges(): Promise<void> {
+        const stashes = await this.gitService.getStashList();
+        if (stashes.length === 0) {
+            vscode.window.showInformationMessage('No stashes available');
+            return;
+        }
+
+        const pick = await vscode.window.showQuickPick(
+            stashes.map(stash => ({
+                label: stash.message || stash.hash,
+                description: `${stash.hash} · ${stash.date.toLocaleString()}`,
+                stash
+            })),
+            { placeHolder: 'Select a stash to restore' }
+        );
+
+        if (!pick) {
+            return;
+        }
+
+        const mode = await vscode.window.showQuickPick([
+            { label: 'Apply (keep in stash)', action: 'apply' as const },
+            { label: 'Pop (remove from stash)', action: 'pop' as const }
+        ], {
+            placeHolder: 'How would you like to restore this stash?'
+        });
+
+        if (!mode) {
+            return;
+        }
+
+        try {
+            if (mode.action === 'apply') {
+                await this.gitService.stashApply(pick.stash.hash);
+            } else {
+                await this.gitService.stashPop(pick.stash.hash);
+            }
+            await Promise.all([
+                this.localChangesProvider.refresh(),
+                this.stashProvider.refresh()
+            ]);
+            vscode.window.showInformationMessage(`Restored stash ${pick.stash.hash}`);
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to restore stash: ${error}`);
+        }
+    }
+
     private async showLog(): Promise<void> {
         await this.gitLogProvider.refresh();
         vscode.commands.executeCommand('vigit.log.focus');
@@ -846,11 +1060,26 @@ export class CommandRegistry {
     }
 
     private async mergeBranch(item: any): Promise<void> {
-        if (!item || !item.branch) {
+        let branchName: string | undefined = item?.branch?.name;
+
+        if (!branchName) {
+            const branches = (await this.gitService.getBranches())
+                .filter(branch => !branch.current && !branch.remote);
+            const pick = await vscode.window.showQuickPick(
+                branches.map(branch => ({
+                    label: branch.name,
+                    description: branch.upstream ? `tracking ${branch.upstream}` : '',
+                    branch
+                })),
+                { placeHolder: 'Select branch to merge into current branch' }
+            );
+            branchName = pick?.branch.name;
+        }
+
+        if (!branchName) {
             return;
         }
 
-        const branchName = item.branch.name;
         const confirm = await vscode.window.showWarningMessage(
             `Merge "${branchName}" into current branch?`,
             { modal: true },
@@ -869,11 +1098,26 @@ export class CommandRegistry {
     }
 
     private async rebaseBranch(item: any): Promise<void> {
-        if (!item || !item.branch) {
+        let branchName: string | undefined = item?.branch?.name;
+
+        if (!branchName) {
+            const branches = (await this.gitService.getBranches())
+                .filter(branch => !branch.current && !branch.remote);
+            const pick = await vscode.window.showQuickPick(
+                branches.map(branch => ({
+                    label: branch.name,
+                    description: branch.upstream ? `tracking ${branch.upstream}` : '',
+                    branch
+                })),
+                { placeHolder: 'Select branch to rebase onto' }
+            );
+            branchName = pick?.branch.name;
+        }
+
+        if (!branchName) {
             return;
         }
 
-        const branchName = item.branch.name;
         const confirm = await vscode.window.showWarningMessage(
             `Rebase current branch onto "${branchName}"?`,
             { modal: true },
@@ -888,6 +1132,35 @@ export class CommandRegistry {
             } catch (error) {
                 vscode.window.showErrorMessage(`Failed to rebase: ${error}`);
             }
+        }
+    }
+
+    private async openBranchesView(): Promise<void> {
+        await vscode.commands.executeCommand('workbench.view.extension.vigit-container');
+        await vscode.commands.executeCommand('vigit.branches.focus');
+    }
+
+    private async createTag(): Promise<void> {
+        const tagName = await vscode.window.showInputBox({
+            prompt: 'Enter tag name',
+            placeHolder: 'v1.0.0',
+            validateInput: (value) => !value?.trim() ? 'Tag name cannot be empty' : null
+        });
+
+        if (!tagName) {
+            return;
+        }
+
+        const startPoint = await vscode.window.showInputBox({
+            prompt: 'Create tag at (leave empty for HEAD)',
+            placeHolder: 'HEAD, commit hash, branch name'
+        });
+
+        try {
+            await this.gitService.createTag(tagName.trim(), startPoint?.trim() || undefined);
+            vscode.window.showInformationMessage(`Created tag ${tagName.trim()}`);
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to create tag: ${error}`);
         }
     }
 
@@ -1002,43 +1275,182 @@ export class CommandRegistry {
         }
     }
 
-    private async compareWithBranch(): Promise<void> {
+    private async compareWithBranch(resource?: vscode.Uri, resources?: vscode.Uri[]): Promise<void> {
         const branches = await this.gitService.getBranches();
-        const items = branches.map(b => ({
-            label: b.name,
-            description: b.current ? '(current)' : '',
-            branch: b
-        }));
+        const tags = await this.gitService.getTags();
+
+        const items = [
+            ...branches.map(branch => ({
+                label: branch.name,
+                description: branch.current ? 'current branch' : branch.remote ? 'remote' : 'branch',
+                ref: branch.name
+            })),
+            ...tags.map(tag => ({
+                label: tag,
+                description: 'tag',
+                ref: tag
+            }))
+        ];
+
+        if (items.length === 0) {
+            vscode.window.showWarningMessage('No branches or tags available');
+            return;
+        }
 
         const selected = await vscode.window.showQuickPick(items, {
-            placeHolder: 'Select branch to compare with'
+            placeHolder: 'Select branch or tag to compare with'
         });
 
         if (!selected) {
             return;
         }
 
-        const editor = vscode.window.activeTextEditor;
-        if (editor) {
-            const filePath = editor.document.uri.fsPath;
-            try {
-                const diff = await this.gitService.compareWithBranch(selected.branch.name, filePath);
-                
-                const doc = await vscode.workspace.openTextDocument({
-                    content: diff,
-                    language: 'diff'
-                });
+        const targetUri = this.resolveResource(resource, resources) ?? vscode.window.activeTextEditor?.document.uri;
 
-                await vscode.window.showTextDocument(doc, {
-                    preview: true,
-                    viewColumn: vscode.ViewColumn.Beside
-                });
-            } catch (error) {
-                vscode.window.showErrorMessage(`Failed to compare: ${error}`);
+        try {
+            const diff = await this.gitService.compareWithBranch(selected.ref, targetUri?.fsPath);
+            if (!diff.trim()) {
+                vscode.window.showInformationMessage('No differences found');
+                return;
             }
-        } else {
-            vscode.window.showWarningMessage('No active editor');
+
+            const doc = await vscode.workspace.openTextDocument({
+                content: diff,
+                language: 'diff'
+            });
+
+            await vscode.window.showTextDocument(doc, {
+                preview: true,
+                viewColumn: vscode.ViewColumn.Beside
+            });
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to compare: ${error}`);
         }
+    }
+
+    private async manageRemotes(): Promise<void> {
+        const action = await vscode.window.showQuickPick([
+            { label: 'Add Remote...', action: 'add' as const },
+            { label: 'Change Remote URL...', action: 'update' as const },
+            { label: 'Remove Remote...', action: 'remove' as const }
+        ], {
+            placeHolder: 'Select remote operation'
+        });
+
+        if (!action) {
+            return;
+        }
+
+        const remotes = await this.gitService.getRemotes();
+
+        const pickRemote = async (placeholder: string) => {
+            if (remotes.length === 0) {
+                vscode.window.showWarningMessage('No remotes configured');
+                return undefined;
+            }
+
+            const remotePick = await vscode.window.showQuickPick(
+                remotes.map(remote => ({
+                    label: remote.name,
+                    description: remote.refs.fetch ?? remote.refs.push ?? '',
+                    remote
+                })),
+                { placeHolder: placeholder }
+            );
+
+            return remotePick?.remote;
+        };
+
+        try {
+            if (action.action === 'add') {
+                const name = await vscode.window.showInputBox({
+                    prompt: 'Remote name',
+                    placeHolder: 'origin',
+                    validateInput: value => !value?.trim() ? 'Name is required' : null
+                });
+                if (!name) {
+                    return;
+                }
+                const url = await vscode.window.showInputBox({
+                    prompt: 'Remote URL',
+                    placeHolder: 'https://github.com/user/repo.git',
+                    validateInput: value => !value?.trim() ? 'URL is required' : null
+                });
+                if (!url) {
+                    return;
+                }
+                await this.gitService.addRemote(name.trim(), url.trim());
+                vscode.window.showInformationMessage(`Added remote ${name.trim()}`);
+            } else if (action.action === 'update') {
+                const remote = await pickRemote('Select remote to update');
+                if (!remote) {
+                    return;
+                }
+                const url = await vscode.window.showInputBox({
+                    prompt: `New URL for ${remote.name}`,
+                    value: remote.refs.fetch ?? remote.refs.push ?? '',
+                    validateInput: value => !value?.trim() ? 'URL is required' : null
+                });
+                if (!url) {
+                    return;
+                }
+                await this.gitService.updateRemote(remote.name, url.trim());
+                vscode.window.showInformationMessage(`Updated remote ${remote.name}`);
+            } else if (action.action === 'remove') {
+                const remote = await pickRemote('Select remote to remove');
+                if (!remote) {
+                    return;
+                }
+                const confirm = await vscode.window.showWarningMessage(
+                    `Remove remote "${remote.name}"?`,
+                    { modal: true },
+                    'Remove'
+                );
+                if (confirm !== 'Remove') {
+                    return;
+                }
+                await this.gitService.removeRemote(remote.name);
+                vscode.window.showInformationMessage(`Removed remote ${remote.name}`);
+            }
+        } catch (error) {
+            vscode.window.showErrorMessage(`Remote operation failed: ${error}`);
+        }
+    }
+
+    private async cloneRepository(): Promise<void> {
+        await vscode.commands.executeCommand('git.clone');
+    }
+
+    private resolveResource(resource?: any, resources?: vscode.Uri[]): vscode.Uri | undefined {
+        if (resource instanceof vscode.Uri) {
+            return resource;
+        }
+        if (resource?.resourceUri instanceof vscode.Uri) {
+            return resource.resourceUri;
+        }
+        if (resources && resources.length > 0) {
+            return resources[0];
+        }
+        return undefined;
+    }
+
+    private resolveResourceArray(resource?: any, resources?: vscode.Uri[]): vscode.Uri[] {
+        const uris: vscode.Uri[] = [];
+
+        if (resources) {
+            for (const entry of resources) {
+                if (entry instanceof vscode.Uri && !uris.find(uri => uri.toString() === entry.toString())) {
+                    uris.push(entry);
+                }
+            }
+        }
+
+        const primary = this.resolveResource(resource, resources);
+        if (primary && !uris.find(uri => uri.toString() === primary.toString())) {
+            uris.unshift(primary);
+        }
+
+        return uris;
     }
 
     private collectFilesFromItem(item: any): string[] {

@@ -6,7 +6,8 @@ export class BranchTreeItem extends vscode.TreeItem {
         public readonly label: string,
         public readonly collapsibleState: vscode.TreeItemCollapsibleState,
         public readonly branch?: GitBranch,
-        public readonly isCategory: boolean = false
+        public readonly isCategory: boolean = false,
+        public readonly categoryType?: 'local' | 'remote'
     ) {
         super(label, collapsibleState);
         
@@ -101,7 +102,7 @@ export class BranchesProvider implements vscode.TreeDataProvider<BranchTreeItem>
         if (element) {
             if (element.isCategory) {
                 // Show branches in this category
-                const isLocal = element.label === 'Local Branches';
+                const isLocal = element.categoryType === 'local';
                 const branches = this.branches.filter(b => 
                     isLocal ? !b.remote : b.remote
                 );
@@ -138,7 +139,8 @@ export class BranchesProvider implements vscode.TreeDataProvider<BranchTreeItem>
                 `Local Branches (${localBranches.length})`,
                 vscode.TreeItemCollapsibleState.Expanded,
                 undefined,
-                true
+                true,
+                'local'
             ));
         }
 
@@ -147,7 +149,8 @@ export class BranchesProvider implements vscode.TreeDataProvider<BranchTreeItem>
                 `Remote Branches (${remoteBranches.length})`,
                 vscode.TreeItemCollapsibleState.Collapsed,
                 undefined,
-                true
+                true,
+                'remote'
             ));
         }
 

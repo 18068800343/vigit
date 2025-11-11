@@ -10,9 +10,11 @@ interface BranchCommitSummary {
     refs: string[];
 }
 
-export class BranchDetailsPanel implements vscode.Disposable {
-    private panel?: vscode.WebviewPanel;
-    private panelDisposables: vscode.Disposable[] = [];
+export class BranchDetailsPanel implements vscode.WebviewViewProvider, vscode.Disposable {
+    public static readonly viewId = 'vigit.branchDetailsPanel';
+
+    private view?: vscode.WebviewView;
+    private viewDisposables: vscode.Disposable[] = [];
     private currentBranch?: GitBranch;
     private readonly maxCommits = 200;
 
@@ -21,70 +23,126 @@ export class BranchDetailsPanel implements vscode.Disposable {
     ) {}
 
     dispose(): void {
-        if (this.panel) {
-            this.panel.dispose();
+        this.disposeView();
+    }
+
+    resolveWebviewView(webviewView: vscode.WebviewView): void {
+        this.view = webviewView;
+        webviewView.webview.options = {
+            enableScripts: true
+        };
+        webviewView.webview.html = this.getEmptyStateHtml(webviewView.webview);
+
+        this.viewDisposables.push(
+            webviewView.onDidDispose(() => this.disposeView()),
+            webviewView.webview.onDidReceiveMessage(message => {
+                void this.handleMessage(message);
+            })
+        );
+
+        if (this.currentBranch) {
+            void this.render(this.currentBranch);
         }
-        this.disposePanel();
     }
 
     async show(branch: GitBranch): Promise<void> {
         this.currentBranch = branch;
-        await this.ensurePanel();
-        await this.render(branch);
-        this.panel?.reveal(vscode.ViewColumn.Beside, true);
-    }
-
-    private async ensurePanel(): Promise<void> {
-        if (this.panel) {
+        await this.ensureViewVisible();
+        if (!this.view) {
+            vscode.window.showWarningMessage('Unable to open branch details view');
             return;
         }
 
-        this.panel = vscode.window.createWebviewPanel(
-            'vigit.branchDetails',
-            'Branch Details',
-            { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
-            {
-                enableScripts: true,
-                retainContextWhenHidden: true
-            }
-        );
-
-        this.panelDisposables.push(
-            this.panel.onDidDispose(() => this.disposePanel()),
-            this.panel.webview.onDidReceiveMessage(message => {
-                void this.handleMessage(message);
-            })
-        );
+        await this.render(branch);
+        this.view.show?.(false);
     }
 
-    private disposePanel(): void {
-        this.panelDisposables.forEach(d => d.dispose());
-        this.panelDisposables = [];
-        this.panel = undefined;
+    private async ensureViewVisible(): Promise<void> {
+        if (this.view) {
+            return;
+        }
+
+        try {
+            await vscode.commands.executeCommand(`${BranchDetailsPanel.viewId}.focus`);
+        } catch {
+            await vscode.commands.executeCommand('workbench.view.extension.vigit-panel');
+        }
+
+        for (let i = 0; i < 5 && !this.view; i++) {
+            await new Promise(resolve => setTimeout(resolve, 50));
+        }
+    }
+
+    private disposeView(): void {
+        this.viewDisposables.forEach(d => d.dispose());
+        this.viewDisposables = [];
+        this.view = undefined;
+    }
+
+    private getEmptyStateHtml(webview: vscode.Webview): string {
+        const cspSource = webview.cspSource;
+        return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline';" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+        body {
+            margin: 0;
+            padding: 32px;
+            font-family: var(--vscode-font-family);
+            background: var(--vscode-sideBar-background);
+            color: var(--vscode-descriptionForeground);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            text-align: center;
+            gap: 12px;
+        }
+        h2 {
+            margin: 0;
+            font-size: 16px;
+            color: var(--vscode-foreground);
+        }
+        p {
+            margin: 0;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <h2>No branch selected</h2>
+    <p>Pick any local or remote branch from the Branches view to inspect its history.</p>
+</body>
+</html>`;
     }
 
     private async render(branch: GitBranch): Promise<void> {
-        if (!this.panel) {
+        if (!this.view) {
             return;
         }
 
         try {
             const commits = await this.gitService.getBranchLog(branch.name, this.maxCommits);
-            if (!this.panel) {
+            if (!this.view) {
                 return;
             }
             const displayName = this.getDisplayBranchName(branch);
-            this.panel.title = `Branch: ${displayName}`;
-            this.panel.webview.html = this.getHtmlForWebview(
-                this.panel.webview,
+            this.view.title = displayName;
+            this.view.description = branch.remote ? 'Remote' : 'Local';
+            this.view.webview.html = this.getHtmlForWebview(
+                this.view.webview,
                 branch,
                 commits,
                 displayName
             );
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
-            if (this.panel) {
-                this.panel.webview.html = `<div style="padding:16px;font-family: var(--vscode-font-family);">${message}</div>`;
+            if (this.view) {
+                this.view.webview.html = `<div style="padding:16px;font-family: var(--vscode-font-family);">${message}</div>`;
             }
         }
     }
@@ -109,16 +167,16 @@ export class BranchDetailsPanel implements vscode.Disposable {
     }
 
     private async handleDiffRequest(hash?: string): Promise<void> {
-        if (!hash || !this.panel) {
+        if (!hash || !this.view) {
             return;
         }
 
         try {
             const diff = await this.gitService.getCommitDiff(hash);
-            if (!this.panel) {
+            if (!this.view) {
                 return;
             }
-            await this.panel.webview.postMessage({
+            await this.view.webview.postMessage({
                 type: 'commitDiff',
                 payload: {
                     hash,
@@ -126,11 +184,11 @@ export class BranchDetailsPanel implements vscode.Disposable {
                 }
             });
         } catch (error) {
-            if (!this.panel) {
+            if (!this.view) {
                 return;
             }
             const message = error instanceof Error ? error.message : String(error);
-            await this.panel.webview.postMessage({
+            await this.view.webview.postMessage({
                 type: 'commitDiff',
                 payload: {
                     hash,
@@ -157,7 +215,16 @@ export class BranchDetailsPanel implements vscode.Disposable {
             refs: commit.refs
         }));
 
-        const branchInfo = branch.remote ? 'Remote branch' : 'Local branch';
+        const infoParts: string[] = [branch.remote ? 'Remote branch' : 'Local branch'];
+        if (branch.upstream) {
+            infoParts.push(`Upstream: ${branch.upstream}`);
+        }
+        const ahead = branch.ahead ?? 0;
+        const behind = branch.behind ?? 0;
+        if (ahead > 0 || behind > 0) {
+            infoParts.push(`Ahead/Behind: ${ahead}/${behind}`);
+        }
+        const branchInfo = infoParts.join(' | ');
 
         return /* html */ `<!DOCTYPE html>
 <html lang="en">
@@ -179,7 +246,7 @@ export class BranchDetailsPanel implements vscode.Disposable {
         .branch-panel {
             display: flex;
             flex-direction: column;
-            height: 100vh;
+            height: 100%;
         }
         .panel-header {
             display: flex;

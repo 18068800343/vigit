@@ -251,6 +251,30 @@ export class ChangelistManager {
         const changelist = this.changelists.get(changelistId);
         return changelist ? [...changelist.files] : [];
     }
+
+    getAllFiles(): string[] {
+        const files = new Set<string>();
+        this.changelists.forEach(cl => {
+            cl.files.forEach(file => files.add(file));
+        });
+        return Array.from(files);
+    }
+
+    getFilesUnderPath(targetPath: string): string[] {
+        const normalizedTarget = this.normalizeFsPath(targetPath);
+        const targetPrefix = normalizedTarget.endsWith('/')
+            ? normalizedTarget
+            : `${normalizedTarget}/`;
+
+        return this.getAllFiles().filter(file => {
+            const normalizedFile = this.normalizeFsPath(file);
+            return normalizedFile === normalizedTarget || normalizedFile.startsWith(targetPrefix);
+        });
+    }
+
+    private normalizeFsPath(fsPath: string): string {
+        return path.resolve(fsPath).replace(/\\/g, '/');
+    }
 }
 
 

@@ -23,6 +23,13 @@
           "title": "ViGit Version Control",
           "icon": "$(source-control)"
         }
+      ],
+      "panel": [
+        {
+          "id": "vigit-panel",
+          "title": "ViGit Branch Details",
+          "icon": "$(git-branch)"
+        }
       ]
     },
     "views": {
@@ -48,6 +55,14 @@
           "name": "Branches",
           "icon": "$(git-branch)"
         }
+      ],
+      "vigit-panel": [
+        {
+          "id": "vigit.branchDetailsPanel",
+          "name": "Branch Details",
+          "type": "webview",
+          "icon": "$(git-branch)"
+        }
       ]
     },
     "commands": [
@@ -67,6 +82,12 @@
         "command": "vigit.commitAndPush",
         "title": "Commit and Push...",
         "icon": "$(cloud-upload)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.commitDirectory",
+        "title": "Commit Directory...",
+        "icon": "$(folder)",
         "category": "ViGit"
       },
       {
@@ -97,6 +118,30 @@
         "command": "vigit.deleteWorkingTreeFile",
         "title": "Delete from Disk...",
         "icon": "$(trash)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.openGitExclude",
+        "title": "Open .git/info/exclude",
+        "icon": "$(file-code)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.showPathDiff",
+        "title": "Show Diff",
+        "icon": "$(diff)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.compareWithRevision",
+        "title": "Compare with Revision...",
+        "icon": "$(git-commit)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.rollbackPath",
+        "title": "Rollback...",
+        "icon": "$(discard)",
         "category": "ViGit"
       },
       {
@@ -133,6 +178,12 @@
         "command": "vigit.unstageFile",
         "title": "Remove from Index",
         "icon": "$(remove)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.stagePath",
+        "title": "Add",
+        "icon": "$(add)",
         "category": "ViGit"
       },
       {
@@ -219,6 +270,12 @@
         "category": "ViGit"
       },
       {
+        "command": "vigit.unstashChanges",
+        "title": "Unstash Changes...",
+        "icon": "$(repo-pull)",
+        "category": "ViGit"
+      },
+      {
         "command": "vigit.showLog",
         "title": "Show Git Log",
         "icon": "$(history)",
@@ -267,6 +324,18 @@
         "category": "ViGit"
       },
       {
+        "command": "vigit.openBranchesView",
+        "title": "Branches...",
+        "icon": "$(git-branch)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.createTag",
+        "title": "New Tag...",
+        "icon": "$(tag)",
+        "category": "ViGit"
+      },
+      {
         "command": "vigit.cherryPick",
         "title": "Cherry-Pick...",
         "icon": "$(git-commit)",
@@ -297,8 +366,20 @@
         "category": "ViGit"
       },
       {
+        "command": "vigit.manageRemotes",
+        "title": "Manage Remotes...",
+        "icon": "$(remote)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.cloneRepository",
+        "title": "Clone...",
+        "icon": "$(repo-clone)",
+        "category": "ViGit"
+      },
+      {
         "command": "vigit.compareWithBranch",
-        "title": "Compare with Branch...",
+        "title": "Compare with Branch or Tag...",
         "icon": "$(diff)",
         "category": "ViGit"
       },
@@ -313,6 +394,13 @@
         "title": "Show Branch History",
         "icon": "$(list-tree)",
         "category": "ViGit"
+      }
+    ],
+    "submenus": [
+      {
+        "id": "vigit.gitExplorerMenu",
+        "label": "Git",
+        "icon": "$(source-control)"
       }
     ],
     "menus": {
@@ -400,6 +488,101 @@
         {
           "command": "vigit.compareWithBranch",
           "group": "vigit@3"
+        }
+      ],
+      "explorer/context": [
+        {
+          "submenu": "vigit.gitExplorerMenu",
+          "when": "resourceScheme == file",
+          "group": "navigation@50"
+        }
+      ],
+      "vigit.gitExplorerMenu": [
+        {
+          "command": "vigit.commitDirectory",
+          "when": "explorerResourceIsFolder",
+          "group": "1_directory@1"
+        },
+        {
+          "command": "vigit.stagePath",
+          "group": "1_directory@2"
+        },
+        {
+          "command": "vigit.openGitExclude",
+          "when": "explorerResourceIsFolder",
+          "group": "1_directory@3"
+        },
+        {
+          "command": "vigit.showPathDiff",
+          "group": "1_directory@4"
+        },
+        {
+          "command": "vigit.compareWithRevision",
+          "group": "1_directory@5"
+        },
+        {
+          "command": "vigit.compareWithBranch",
+          "group": "1_directory@6"
+        },
+        {
+          "command": "vigit.showLog",
+          "group": "1_directory@7"
+        },
+        {
+          "command": "vigit.rollbackPath",
+          "group": "1_directory@8"
+        },
+        {
+          "command": "vigit.push",
+          "group": "2_remote@1"
+        },
+        {
+          "command": "vigit.pull",
+          "group": "2_remote@2"
+        },
+        {
+          "command": "vigit.fetch",
+          "group": "2_remote@3"
+        },
+        {
+          "command": "vigit.mergeBranch",
+          "group": "3_branch@1"
+        },
+        {
+          "command": "vigit.rebaseBranch",
+          "group": "3_branch@2"
+        },
+        {
+          "command": "vigit.openBranchesView",
+          "group": "3_branch@3"
+        },
+        {
+          "command": "vigit.newBranch",
+          "group": "3_branch@4"
+        },
+        {
+          "command": "vigit.createTag",
+          "group": "3_branch@5"
+        },
+        {
+          "command": "vigit.resetHead",
+          "group": "3_branch@6"
+        },
+        {
+          "command": "vigit.stashSave",
+          "group": "4_stash@1"
+        },
+        {
+          "command": "vigit.unstashChanges",
+          "group": "4_stash@2"
+        },
+        {
+          "command": "vigit.manageRemotes",
+          "group": "5_management@1"
+        },
+        {
+          "command": "vigit.cloneRepository",
+          "group": "5_management@2"
         }
       ]
     },

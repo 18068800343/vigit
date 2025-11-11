@@ -110,7 +110,8 @@ export async function activate(context: vscode.ExtensionContext) {
             fileWatcher,
             commitPanelProvider,
             branchDetailsPanel,
-            vscode.window.registerWebviewViewProvider(CommitPanelProvider.viewId, commitPanelProvider)
+            vscode.window.registerWebviewViewProvider(CommitPanelProvider.viewId, commitPanelProvider),
+            vscode.window.registerWebviewViewProvider(BranchDetailsPanel.viewId, branchDetailsPanel)
         );
 
         vscode.window.showInformationMessage('ViGit: Ready for Git version control!');
