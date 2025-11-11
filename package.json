@@ -28,6 +28,12 @@
     "views": {
       "vigit-container": [
         {
+          "id": "vigit.commitPanel",
+          "name": "Commit",
+          "type": "webview",
+          "icon": "$(git-commit)"
+        },
+        {
           "id": "vigit.localChanges",
           "name": "Local Changes",
           "icon": "$(files)"
@@ -80,6 +86,48 @@
         "category": "ViGit"
       },
       {
+        "command": "vigit.showDiffNewTab",
+        "title": "Show Diff in New Tab",
+        "icon": "$(split-horizontal)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.commitFile",
+        "title": "Commit File...",
+        "icon": "$(checklist)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.jumpToSource",
+        "title": "Jump to Source",
+        "icon": "$(go-to-file)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.deleteWorkingTreeFile",
+        "title": "Delete from Disk...",
+        "icon": "$(trash)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.copyPatchToClipboard",
+        "title": "Copy Patch to Clipboard",
+        "icon": "$(clippy)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.createPatchFromLocalChanges",
+        "title": "Create Patch from Local Changes...",
+        "icon": "$(diff-added)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.showLocalChangesAsUml",
+        "title": "Show Local Changes as UML",
+        "icon": "$(symbol-class)",
+        "category": "ViGit"
+      },
+      {
         "command": "vigit.revertFile",
         "title": "Revert File",
         "icon": "$(discard)",
@@ -121,6 +169,12 @@
         "category": "ViGit"
       },
       {
+        "command": "vigit.editChangelist",
+        "title": "Edit Changelist...",
+        "icon": "$(gear)",
+        "category": "ViGit"
+      },
+      {
         "command": "vigit.shelveChanges",
         "title": "Shelve Changes...",
         "icon": "$(archive)",
@@ -136,6 +190,12 @@
         "command": "vigit.deleteShelvedChanges",
         "title": "Delete Shelved Changes",
         "icon": "$(trash)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.showShelvedDiff",
+        "title": "Show Shelf Diff",
+        "icon": "$(diff)",
         "category": "ViGit"
       },
       {
@@ -294,6 +354,11 @@
           "group": "inline@1"
         },
         {
+          "command": "vigit.showDiffNewTab",
+          "when": "view == vigit.localChanges && viewItem =~ /file/",
+          "group": "inline@2"
+        },
+        {
           "command": "vigit.revertFile",
           "when": "view == vigit.localChanges && viewItem =~ /file/",
           "group": "1_actions@1"
@@ -309,9 +374,49 @@
           "group": "1_actions@3"
         },
         {
+          "command": "vigit.commitFile",
+          "when": "view == vigit.localChanges && viewItem =~ /file/",
+          "group": "1_actions@4"
+        },
+        {
+          "command": "vigit.jumpToSource",
+          "when": "view == vigit.localChanges && viewItem =~ /file/",
+          "group": "1_actions@5"
+        },
+        {
+          "command": "vigit.deleteWorkingTreeFile",
+          "when": "view == vigit.localChanges && viewItem =~ /file/",
+          "group": "1_actions@6"
+        },
+        {
           "command": "vigit.moveToChangelist",
           "when": "view == vigit.localChanges && viewItem =~ /file/",
           "group": "2_changelist@1"
+        },
+        {
+          "command": "vigit.copyPatchToClipboard",
+          "when": "view == vigit.localChanges && viewItem =~ /file/",
+          "group": "3_patch@1"
+        },
+        {
+          "command": "vigit.createPatchFromLocalChanges",
+          "when": "view == vigit.localChanges && viewItem =~ /file/",
+          "group": "3_patch@2"
+        },
+        {
+          "command": "vigit.showLocalChangesAsUml",
+          "when": "view == vigit.localChanges && viewItem =~ /file/",
+          "group": "3_patch@3"
+        },
+        {
+          "command": "vigit.createPatchFromLocalChanges",
+          "when": "view == vigit.localChanges && viewItem == folder",
+          "group": "3_patch@1"
+        },
+        {
+          "command": "vigit.showLocalChangesAsUml",
+          "when": "view == vigit.localChanges && viewItem == folder",
+          "group": "3_patch@2"
         },
         {
           "command": "vigit.setActiveChangelist",
@@ -324,9 +429,34 @@
           "group": "2_changelist@1"
         },
         {
+          "command": "vigit.editChangelist",
+          "when": "view == vigit.localChanges && viewItem == changelist",
+          "group": "2_changelist@2"
+        },
+        {
+          "command": "vigit.commitFile",
+          "when": "view == vigit.localChanges && viewItem == changelist",
+          "group": "1_changelist@2"
+        },
+        {
+          "command": "vigit.createPatchFromLocalChanges",
+          "when": "view == vigit.localChanges && viewItem == changelist",
+          "group": "3_patch@1"
+        },
+        {
+          "command": "vigit.showLocalChangesAsUml",
+          "when": "view == vigit.localChanges && viewItem == changelist",
+          "group": "3_patch@2"
+        },
+        {
           "command": "vigit.unshelveChanges",
           "when": "view == vigit.shelf && viewItem == shelf",
           "group": "inline@1"
+        },
+        {
+          "command": "vigit.showShelvedDiff",
+          "when": "view == vigit.shelf && viewItem == shelf",
+          "group": "inline@2"
         },
         {
           "command": "vigit.deleteShelvedChanges",
