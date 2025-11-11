@@ -14,14 +14,11 @@ export class BranchTreeItem extends vscode.TreeItem {
             this.contextValue = 'branch';
             this.tooltip = this.createTooltip();
             this.iconPath = this.getIcon();
-            
-            if (!branch.remote) {
-                this.command = {
-                    command: 'vigit.checkoutBranch',
-                    title: 'Checkout Branch',
-                    arguments: [branch.name]
-                };
-            }
+            this.command = {
+                command: 'vigit.showBranchDetails',
+                title: 'Show Branch History',
+                arguments: [branch]
+            };
         } else if (isCategory) {
             this.contextValue = 'category';
             this.iconPath = new vscode.ThemeIcon('folder');
@@ -168,10 +165,10 @@ export class BranchesProvider implements vscode.TreeDataProvider<BranchTreeItem>
 
         const parts: string[] = [];
         if (branch.ahead && branch.ahead > 0) {
-            parts.push(`↑${branch.ahead}`);
+            parts.push(`+${branch.ahead}`);
         }
         if (branch.behind && branch.behind > 0) {
-            parts.push(`↓${branch.behind}`);
+            parts.push(`-${branch.behind}`);
         }
 
         return parts.length > 0 ? `[${parts.join(' ')}]` : '';

@@ -15,6 +15,7 @@ interface CommitPanelFileItem {
     statusLabel: string;
     staged: boolean;
     changelistName?: string;
+    changelistId?: string;
     inActiveChangelist?: boolean;
     renamedFrom?: string;
 }
@@ -41,6 +42,14 @@ interface CommitRequestPayload {
     message: string;
     andPush?: boolean;
     amend?: boolean;
+}
+
+interface FileActionMessagePayload {
+    action: string;
+    filePath: string;
+    fileName?: string;
+    staged?: boolean;
+    changelistId?: string;
 }
 
 export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.Disposable {
@@ -113,6 +122,9 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
                     await this.openFile(message.payload.file);
                 }
                 break;
+            case 'fileAction':
+                await this.handleFileAction(message.payload as FileActionMessagePayload);
+                break;
             default:
                 break;
         }
@@ -125,6 +137,69 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
             vscode.window.showErrorMessage(`Unable to open file: ${errorMessage}`);
+        }
+    }
+
+    private async handleFileAction(payload: FileActionMessagePayload): Promise<void> {
+        if (!payload?.filePath) {
+            return;
+        }
+
+        const fileName = payload.fileName ?? path.basename(payload.filePath);
+        const treeItem = {
+            filePath: payload.filePath,
+            label: fileName,
+            staged: !!payload.staged,
+            changelistId: payload.changelistId
+        };
+
+        const execute = async (command: string, ...args: any[]) =>
+            vscode.commands.executeCommand(command, ...args);
+
+        try {
+            switch (payload.action) {
+                case 'showDiff':
+                    await execute('vigit.showDiff', payload.filePath, payload.staged ?? false);
+                    break;
+                case 'showDiffNewTab':
+                    await execute('vigit.showDiffNewTab', payload.filePath, payload.staged ?? false);
+                    break;
+                case 'revert':
+                    await execute('vigit.revertFile', treeItem);
+                    break;
+                case 'stage':
+                    await execute('vigit.stageFile', treeItem);
+                    break;
+                case 'unstage':
+                    await execute('vigit.unstageFile', treeItem);
+                    break;
+                case 'commitFile':
+                    await execute('vigit.commitFile', treeItem);
+                    break;
+                case 'jumpToSource':
+                    await execute('vigit.jumpToSource', treeItem);
+                    break;
+                case 'delete':
+                    await execute('vigit.deleteWorkingTreeFile', treeItem);
+                    break;
+                case 'moveToChangelist':
+                    await execute('vigit.moveToChangelist', treeItem);
+                    break;
+                case 'copyPatch':
+                    await execute('vigit.copyPatchToClipboard', treeItem);
+                    break;
+                case 'createPatch':
+                    await execute('vigit.createPatchFromLocalChanges', treeItem);
+                    break;
+                case 'showUml':
+                    await execute('vigit.showLocalChangesAsUml', treeItem);
+                    break;
+                default:
+                    break;
+            }
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            vscode.window.showErrorMessage(`Failed to execute action "${payload.action}": ${message}`);
         }
     }
 
@@ -255,6 +330,7 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
                 const relative = this.normalize(path.relative(workspaceRoot, file));
                 const item = ensureItem(file, relative);
                 item.changelistName = changelist.name;
+                item.changelistId = changelist.id;
                 item.inActiveChangelist = changelist.id === activeChangelistId;
             }
         }
@@ -628,6 +704,42 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
             text-align: center;
             color: var(--vscode-descriptionForeground);
         }
+        .context-menu {
+            position: fixed;
+            z-index: 1000;
+            min-width: 220px;
+            padding: 4px 0;
+            background: var(--vscode-editorWidget-background, var(--vscode-sideBar-background));
+            color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
+            border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border));
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+            border-radius: 4px;
+            display: none;
+        }
+        .context-menu.visible {
+            display: block;
+        }
+        .context-menu__item {
+            padding: 6px 14px;
+            font-size: 12px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .context-menu__item:hover {
+            background: var(--vscode-list-hoverBackground);
+        }
+        .context-menu__item:active {
+            background: var(--vscode-list-activeSelectionBackground);
+        }
+        .context-menu__separator {
+            height: 1px;
+            margin: 4px 0;
+            background: var(--vscode-panel-border);
+        }
+        .context-menu__item.disabled {
+            opacity: 0.5;
+            cursor: default;
+        }
     </style>
 </head>
 <body>
@@ -672,6 +784,9 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
             const commitMessageInput = document.getElementById('commitMessage');
             const amendToggle = document.getElementById('amendToggle');
             const historyPicker = document.getElementById('historyPicker');
+            const contextMenu = document.createElement('div');
+            contextMenu.className = 'context-menu';
+            document.body.appendChild(contextMenu);
 
             const state = {
                 files: [],
@@ -712,6 +827,105 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
                   });
               };
 
+            const postFileAction = (action, file) => {
+                vscode.postMessage({
+                    type: 'fileAction',
+                    payload: {
+                        action,
+                        filePath: file.absolutePath,
+                        fileName: file.fileName,
+                        staged: file.staged,
+                        changelistId: file.changelistId
+                    }
+                });
+            };
+
+            const getContextActions = file => {
+                const actions = [
+                    { id: 'showDiff', label: 'Show Diff' },
+                    { id: 'showDiffNewTab', label: 'Show Diff in New Tab' },
+                    'separator',
+                    { id: 'revert', label: 'Revert File' },
+                    file.staged
+                        ? { id: 'unstage', label: 'Remove from Index' }
+                        : { id: 'stage', label: 'Add to Index' },
+                    { id: 'commitFile', label: 'Commit File...' },
+                    { id: 'jumpToSource', label: 'Jump to Source' },
+                    { id: 'delete', label: 'Delete from Disk...' },
+                    'separator',
+                    { id: 'moveToChangelist', label: 'Move to Changelist...' },
+                    'separator',
+                    { id: 'copyPatch', label: 'Copy Patch to Clipboard' },
+                    { id: 'createPatch', label: 'Create Patch from Local Changes...' },
+                    { id: 'showUml', label: 'Show Local Changes as UML' }
+                ];
+                return actions;
+            };
+
+            const hideContextMenu = () => {
+                contextMenu.classList.remove('visible');
+            };
+
+            const showContextMenu = (file, x, y) => {
+                contextMenu.innerHTML = '';
+                const actions = getContextActions(file);
+                let previousWasSeparator = true;
+
+                actions.forEach(action => {
+                    if (action === 'separator') {
+                        if (!previousWasSeparator && contextMenu.lastElementChild) {
+                            const separator = document.createElement('div');
+                            separator.className = 'context-menu__separator';
+                            contextMenu.appendChild(separator);
+                        }
+                        previousWasSeparator = true;
+                        return;
+                    }
+
+                    previousWasSeparator = false;
+                    const item = document.createElement('div');
+                    item.className = 'context-menu__item';
+                    item.textContent = action.label;
+                    item.addEventListener('click', event => {
+                        event.stopPropagation();
+                        hideContextMenu();
+                        postFileAction(action.id, file);
+                    });
+                    contextMenu.appendChild(item);
+                });
+
+                contextMenu.classList.add('visible');
+                contextMenu.style.left = x + 'px';
+                contextMenu.style.top = y + 'px';
+
+                const rect = contextMenu.getBoundingClientRect();
+                let adjustedX = x;
+                let adjustedY = y;
+                if (rect.right > window.innerWidth) {
+                    adjustedX = Math.max(0, window.innerWidth - rect.width - 8);
+                }
+                if (rect.bottom > window.innerHeight) {
+                    adjustedY = Math.max(0, window.innerHeight - rect.height - 8);
+                }
+                contextMenu.style.left = adjustedX + 'px';
+                contextMenu.style.top = adjustedY + 'px';
+            };
+
+            document.addEventListener('click', event => {
+                if (event.target && event.target.closest('.context-menu')) {
+                    return;
+                }
+                hideContextMenu();
+            });
+            document.addEventListener('contextmenu', event => {
+                if (event.target && (event.target.closest('.context-menu') || event.target.closest('.file-row'))) {
+                    return;
+                }
+                hideContextMenu();
+            });
+            window.addEventListener('blur', hideContextMenu);
+            document.addEventListener('scroll', hideContextMenu, true);
+
             const updateSelectAll = () => {
                 const total = state.files.length;
                 selectAll.checked = total > 0 && state.selected.size === total;
@@ -730,6 +944,7 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
             };
 
             const renderGroups = () => {
+                hideContextMenu();
                 groupContainer.innerHTML = '';
                 if (!state.groups.length) {
                     const empty = document.createElement('div');
@@ -874,6 +1089,12 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
 
                 row.addEventListener('dblclick', () => {
                     vscode.postMessage({ type: 'openDiff', payload: { file: file.absolutePath } });
+                });
+
+                row.addEventListener('contextmenu', event => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    showContextMenu(file, event.clientX, event.clientY);
                 });
 
                 return row;

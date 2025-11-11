@@ -27,6 +27,9 @@ export interface GitBranch {
     current: boolean;
     remote: boolean;
     commit: string;
+    upstream?: string;
+    ahead?: number;
+    behind?: number;
 }
 
 export interface GitStashEntry {
@@ -212,6 +215,21 @@ export class GitService {
         }));
     }
 
+    async getBranchLog(branchName: string, maxCount: number = 100): Promise<GitCommit[]> {
+        const log: LogResult = await this.git.log([branchName, '-n', String(maxCount)]);
+
+        return log.all.map(commit => ({
+            hash: commit.hash,
+            abbrevHash: commit.hash.substring(0, 7),
+            author: (commit as any).author_name || '',
+            email: (commit as any).author_email || '',
+            date: new Date(commit.date),
+            message: commit.message,
+            parents: [],
+            refs: (commit as any).refs ? String((commit as any).refs).split(',').map((r: string) => r.trim()).filter((r: string) => r) : []
+        }));
+    }
+
     async getCommitDiff(commitHash: string): Promise<string> {
         return await this.git.show([commitHash]);
     }
@@ -219,13 +237,20 @@ export class GitService {
     async getBranches(): Promise<GitBranch[]> {
         const summary: BranchSummary = await this.git.branch(['-a']);
         const branches: GitBranch[] = [];
+        const trackingMap = await this.getBranchTrackingMap();
 
         for (const [name, info] of Object.entries(summary.branches)) {
+            const isRemote = name.includes('remotes/');
+            const tracking = !isRemote ? trackingMap.get(name) : undefined;
+
             branches.push({
                 name,
                 current: info.current,
-                remote: name.includes('remotes/'),
-                commit: info.commit
+                remote: isRemote,
+                commit: info.commit,
+                upstream: tracking?.upstream,
+                ahead: tracking?.ahead,
+                behind: tracking?.behind
             });
         }
 
@@ -353,5 +378,49 @@ export class GitService {
         }
 
         return new Date();
+    }
+
+    private async getBranchTrackingMap(): Promise<Map<string, { upstream?: string; ahead?: number; behind?: number }>> {
+        const map = new Map<string, { upstream?: string; ahead?: number; behind?: number }>();
+        try {
+            const output = await this.git.raw([
+                'for-each-ref',
+                '--format=%(refname:short)\t%(upstream:short)\t%(upstream:track)',
+                'refs/heads'
+            ]);
+
+            const lines = output.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+            for (const line of lines) {
+                const [branchName, upstreamRaw, trackRaw] = line.split('\t');
+                if (!branchName) {
+                    continue;
+                }
+
+                const trackingInfo: { upstream?: string; ahead?: number; behind?: number } = {};
+                if (upstreamRaw) {
+                    trackingInfo.upstream = upstreamRaw;
+                }
+
+                if (trackRaw) {
+                    const cleaned = trackRaw.replace(/[\[\]]/g, '');
+                    const segments = cleaned.split(',').map(seg => seg.trim());
+                    for (const segment of segments) {
+                        const aheadMatch = segment.match(/ahead\s+(\d+)/i);
+                        if (aheadMatch) {
+                            trackingInfo.ahead = Number(aheadMatch[1]);
+                        }
+                        const behindMatch = segment.match(/behind\s+(\d+)/i);
+                        if (behindMatch) {
+                            trackingInfo.behind = Number(behindMatch[1]);
+                        }
+                    }
+                }
+
+                map.set(branchName, trackingInfo);
+            }
+        } catch (error) {
+            console.warn('ViGit: unable to load branch tracking info', error);
+        }
+        return map;
     }
 }

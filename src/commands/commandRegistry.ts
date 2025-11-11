@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { GitService, GitStatus } from '../services/gitService';
+import { GitService, GitStatus, GitBranch } from '../services/gitService';
 import { ChangelistManager } from '../managers/changelistManager';
 import { ShelfManager, ShelvedChange } from '../managers/shelfManager';
 import { LocalChangesProvider } from '../providers/localChangesProvider';
@@ -9,6 +9,7 @@ import { ShelfProvider } from '../providers/shelfProvider';
 import { BranchesProvider } from '../providers/branchesProvider';
 import { StashProvider, StashTreeItem } from '../providers/stashProvider';
 import { CommitDialog } from '../ui/commitDialog';
+import { BranchDetailsPanel } from '../ui/branchDetailsPanel';
 import { DiffViewHelper } from '../helpers/diffViewHelper';
 import { AnnotateHelper } from '../helpers/annotateHelper';
 
@@ -23,6 +24,7 @@ export class CommandRegistry {
     private branchesProvider: BranchesProvider;
     private stashProvider: StashProvider;
     private commitDialog: CommitDialog;
+    private branchDetailsPanel: BranchDetailsPanel;
 
     constructor(
         context: vscode.ExtensionContext,
@@ -34,7 +36,8 @@ export class CommandRegistry {
         shelfProvider: ShelfProvider,
         branchesProvider: BranchesProvider,
         stashProvider: StashProvider,
-        commitDialog: CommitDialog
+        commitDialog: CommitDialog,
+        branchDetailsPanel: BranchDetailsPanel
     ) {
         this.context = context;
         this.gitService = gitService;
@@ -46,6 +49,7 @@ export class CommandRegistry {
         this.branchesProvider = branchesProvider;
         this.stashProvider = stashProvider;
         this.commitDialog = commitDialog;
+        this.branchDetailsPanel = branchDetailsPanel;
     }
 
     registerAllCommands(): void {
@@ -95,6 +99,7 @@ export class CommandRegistry {
         this.register('vigit.showLog', () => this.showLog());
         this.register('vigit.showFileHistory', () => this.showFileHistory());
         this.register('vigit.showCommitDetails', (commit: any) => this.showCommitDetails(commit));
+        this.register('vigit.showBranchDetails', (branch: GitBranch) => this.showBranchDetails(branch));
         this.register('vigit.annotate', () => this.annotate());
 
         // Branch commands
@@ -738,6 +743,19 @@ export class CommandRegistry {
             });
         } catch (error) {
             vscode.window.showErrorMessage(`Failed to show commit details: ${error}`);
+        }
+    }
+
+    private async showBranchDetails(branch: GitBranch | { branch?: GitBranch } | undefined): Promise<void> {
+        const target = (branch as any)?.branch ?? branch;
+        if (!target || !target.name) {
+            return;
+        }
+
+        try {
+            await this.branchDetailsPanel.show(target);
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to open branch details: ${error}`);
         }
     }
 

@@ -3,11 +3,42 @@ import * as path from 'path';
 import { GitService, GitStatus } from '../services/gitService';
 import { ChangelistManager, Changelist } from '../managers/changelistManager';
 
+interface FileNode {
+    type: 'file';
+    filePath: string;
+}
+
+interface FolderNode {
+    type: 'folder';
+    name: string;
+    path: string;
+    children: Map<string, TreeNode>;
+}
+
+type TreeNode = FileNode | FolderNode;
+
+interface StatusIndex {
+    modified: Set<string>;
+    deleted: Set<string>;
+    untracked: Set<string>;
+    renamed: { from: string; to: string }[];
+}
+
+interface FileTreeOptions {
+    changelistId?: string;
+    stagedFiles?: Set<string>;
+    statusIndex?: StatusIndex | null;
+    expandFolders?: boolean;
+}
+
 export class LocalChangesTreeItem extends vscode.TreeItem {
+    children?: LocalChangesTreeItem[];
+    folderPath?: string;
+
     constructor(
         public readonly label: string,
         public readonly collapsibleState: vscode.TreeItemCollapsibleState,
-        public readonly type: 'changelist' | 'file' | 'category',
+        public readonly type: 'changelist' | 'file' | 'category' | 'folder',
         public readonly filePath?: string,
         public readonly changelistId?: string,
         public readonly staged?: boolean
@@ -17,6 +48,8 @@ export class LocalChangesTreeItem extends vscode.TreeItem {
         this.contextValue = type;
         if (type === 'file') {
             this.contextValue = staged ? 'file-staged' : 'file-unstaged';
+        } else if (type === 'folder') {
+            this.contextValue = 'folder';
         }
 
         if (filePath) {
@@ -36,6 +69,8 @@ export class LocalChangesTreeItem extends vscode.TreeItem {
         switch (this.type) {
             case 'changelist':
                 return new vscode.ThemeIcon('folder');
+            case 'folder':
+                return new vscode.ThemeIcon('folder');
             case 'category':
                 return new vscode.ThemeIcon('folder-opened');
             case 'file':
@@ -48,6 +83,9 @@ export class LocalChangesTreeItem extends vscode.TreeItem {
     private getTooltip(): string {
         if (this.type === 'file' && this.filePath) {
             return this.filePath;
+        }
+        if (this.type === 'folder' && this.folderPath) {
+            return this.folderPath;
         }
         return this.label;
     }
@@ -131,6 +169,10 @@ export class LocalChangesProvider implements vscode.TreeDataProvider<LocalChange
             return this.getFilesInChangelist(element.changelistId!);
         }
 
+        if (element.type === 'folder') {
+            return element.children ?? [];
+        }
+
         if (element.type === 'category' && element.label.startsWith('Unversioned Files')) {
             return this.getUnversionedFileItems();
         }
@@ -197,78 +239,214 @@ export class LocalChangesProvider implements vscode.TreeDataProvider<LocalChange
             return [];
         }
 
-        const items: LocalChangesTreeItem[] = [];
-
         const files = this.gitStatus.untracked
             .map(f => path.join(this.workspaceRoot, f))
             .filter(f => !this.changelistManager.getChangelistForFile(f));
 
-        for (const filePath of files) {
-            const fileName = path.basename(filePath);
-            const label = `${fileName} (Untracked)`;
-
-            const item = new LocalChangesTreeItem(
-                label,
-                vscode.TreeItemCollapsibleState.None,
-                'file',
-                filePath
-            );
-
-            item.iconPath = new vscode.ThemeIcon('diff-added', new vscode.ThemeColor('charts.yellow'));
-            items.push(item);
-        }
-
-        return items;
+        return this.buildFileTree(files, {
+            statusIndex: this.buildStatusIndex(),
+            expandFolders: true
+        });
     }
 
     private getFilesInChangelist(changelistId: string): LocalChangesTreeItem[] {
         const changelist = this.changelistManager.getChangelist(changelistId);
-        if (!changelist || !this.gitStatus) {
+        if (!changelist) {
             return [];
         }
 
-        const items: LocalChangesTreeItem[] = [];
-        const stagedFiles = this.gitStatus.staged.map(f => path.join(this.workspaceRoot, f));
+        const stagedFiles = this.gitStatus
+            ? new Set(this.gitStatus.staged.map(f => path.join(this.workspaceRoot, f)))
+            : new Set<string>();
 
-        for (const filePath of changelist.files) {
-            const relativePath = path.relative(this.workspaceRoot, filePath);
-            const fileName = path.basename(filePath);
-            const staged = stagedFiles.includes(filePath);
+        const statusIndex = this.buildStatusIndex();
 
-            let status = '';
-            if (this.gitStatus.modified.includes(relativePath)) {
-                status = ' (Modified)';
-            } else if (this.gitStatus.deleted.includes(relativePath)) {
-                status = ' (Deleted)';
-            } else if (this.gitStatus.untracked.includes(relativePath)) {
-                status = ' (Untracked)';
-            }
+        return this.buildFileTree(changelist.files, {
+            changelistId,
+            stagedFiles,
+            statusIndex
+        });
+    }
 
-            const label = `${fileName}${status}`;
-            const item = new LocalChangesTreeItem(
-                label,
-                vscode.TreeItemCollapsibleState.None,
-                'file',
-                filePath,
-                changelistId,
-                staged
-            );
-
-            // Set decorations
-            if (staged) {
-                item.iconPath = new vscode.ThemeIcon('check', new vscode.ThemeColor('charts.green'));
-            } else if (status.includes('Modified')) {
-                item.iconPath = new vscode.ThemeIcon('edit', new vscode.ThemeColor('charts.blue'));
-            } else if (status.includes('Deleted')) {
-                item.iconPath = new vscode.ThemeIcon('trash', new vscode.ThemeColor('charts.red'));
-            } else if (status.includes('Untracked')) {
-                item.iconPath = new vscode.ThemeIcon('diff-added', new vscode.ThemeColor('charts.yellow'));
-            }
-
-            items.push(item);
+    private buildFileTree(files: string[], options: FileTreeOptions): LocalChangesTreeItem[] {
+        if (!files || files.length === 0) {
+            return [];
         }
 
+        const root = new Map<string, TreeNode>();
+        for (const filePath of files) {
+            this.insertFileNode(root, filePath);
+        }
+
+        return this.convertTreeLevel(root, options);
+    }
+
+    private insertFileNode(level: Map<string, TreeNode>, filePath: string): void {
+        const relativePath = path.relative(this.workspaceRoot, filePath);
+        const segments = relativePath.split(/[\\/]/).filter(segment => segment.length > 0);
+
+        if (segments.length === 0) {
+            return;
+        }
+
+        let currentLevel = level;
+        for (let i = 0; i < segments.length; i++) {
+            const segment = segments[i];
+            const isLeaf = i === segments.length - 1;
+
+            if (isLeaf) {
+                currentLevel.set(segment, {
+                    type: 'file',
+                    filePath
+                } as FileNode);
+            } else {
+                let existing = currentLevel.get(segment) as FolderNode | undefined;
+                if (!existing || existing.type !== 'folder') {
+                    const folderPath = path.join(this.workspaceRoot, segments.slice(0, i + 1).join(path.sep));
+                    existing = {
+                        type: 'folder',
+                        name: segment,
+                        path: folderPath,
+                        children: new Map()
+                    };
+                    currentLevel.set(segment, existing);
+                }
+                currentLevel = existing.children;
+            }
+        }
+    }
+
+    private convertTreeLevel(level: Map<string, TreeNode>, options: FileTreeOptions): LocalChangesTreeItem[] {
+        const entries = Array.from(level.entries()).sort((a, b) => {
+            const aIsFolder = a[1].type === 'folder';
+            const bIsFolder = b[1].type === 'folder';
+            if (aIsFolder !== bIsFolder) {
+                return aIsFolder ? -1 : 1;
+            }
+            return a[0].localeCompare(b[0]);
+        });
+
+        const items: LocalChangesTreeItem[] = [];
+        for (const [, node] of entries) {
+            if (node.type === 'folder') {
+                const childItems = this.convertTreeLevel(node.children, options);
+                const folderItem = new LocalChangesTreeItem(
+                    node.name,
+                    options.expandFolders
+                        ? vscode.TreeItemCollapsibleState.Expanded
+                        : vscode.TreeItemCollapsibleState.Collapsed,
+                    'folder',
+                    undefined,
+                    options.changelistId
+                );
+                folderItem.children = childItems;
+                folderItem.folderPath = node.path;
+                folderItem.tooltip = node.path;
+                const fileCount = this.countDescendantFiles(childItems);
+                folderItem.description = fileCount > 0 ? `${fileCount} file${fileCount !== 1 ? 's' : ''}` : undefined;
+                items.push(folderItem);
+            } else {
+                items.push(this.createFileItem(node.filePath, options));
+            }
+        }
         return items;
+    }
+
+    private createFileItem(filePath: string, options: FileTreeOptions): LocalChangesTreeItem {
+        const fileName = path.basename(filePath);
+        const relativePath = path.relative(this.workspaceRoot, filePath);
+        const staged = options.stagedFiles?.has(filePath) ?? false;
+        const statusInfo = this.describeFileStatus(relativePath, options.statusIndex);
+
+        const label = statusInfo?.suffix
+            ? `${fileName} (${statusInfo.suffix})`
+            : fileName;
+
+        const item = new LocalChangesTreeItem(
+            label,
+            vscode.TreeItemCollapsibleState.None,
+            'file',
+            filePath,
+            options.changelistId,
+            staged
+        );
+
+        if (staged) {
+            item.iconPath = new vscode.ThemeIcon('check', new vscode.ThemeColor('charts.green'));
+        } else if (statusInfo?.icon) {
+            item.iconPath = statusInfo.icon;
+        }
+
+        return item;
+    }
+
+    private describeFileStatus(relativePath: string, statusIndex?: StatusIndex | null): { suffix?: string; icon?: vscode.ThemeIcon } | undefined {
+        if (!statusIndex) {
+            return undefined;
+        }
+
+        const normalized = this.normalizeRelativePath(relativePath);
+        if (statusIndex.untracked.has(normalized)) {
+            return {
+                suffix: 'Untracked',
+                icon: new vscode.ThemeIcon('diff-added', new vscode.ThemeColor('charts.yellow'))
+            };
+        }
+        if (statusIndex.deleted.has(normalized)) {
+            return {
+                suffix: 'Deleted',
+                icon: new vscode.ThemeIcon('trash', new vscode.ThemeColor('charts.red'))
+            };
+        }
+        if (statusIndex.modified.has(normalized)) {
+            return {
+                suffix: 'Modified',
+                icon: new vscode.ThemeIcon('edit', new vscode.ThemeColor('charts.blue'))
+            };
+        }
+
+        const renamed = statusIndex.renamed.find(entry => entry.to === normalized || entry.from === normalized);
+        if (renamed) {
+            const fromLabel = renamed.from === normalized ? renamed.to : renamed.from;
+            return {
+                suffix: renamed.to === normalized ? `Renamed from ${fromLabel}` : 'Renamed',
+                icon: new vscode.ThemeIcon('sync')
+            };
+        }
+
+        return undefined;
+    }
+
+    private buildStatusIndex(): StatusIndex | null {
+        if (!this.gitStatus) {
+            return null;
+        }
+
+        return {
+            modified: new Set(this.gitStatus.modified.map(rel => this.normalizeRelativePath(rel))),
+            deleted: new Set(this.gitStatus.deleted.map(rel => this.normalizeRelativePath(rel))),
+            untracked: new Set(this.gitStatus.untracked.map(rel => this.normalizeRelativePath(rel))),
+            renamed: this.gitStatus.renamed.map(entry => ({
+                from: this.normalizeRelativePath(entry.from),
+                to: this.normalizeRelativePath(entry.to)
+            }))
+        };
+    }
+
+    private normalizeRelativePath(relativePath: string): string {
+        return relativePath.replace(/\\/g, '/');
+    }
+
+    private countDescendantFiles(items: LocalChangesTreeItem[]): number {
+        return items.reduce((count, item) => {
+            if (item.type === 'file') {
+                return count + 1;
+            }
+            if (item.children && item.children.length > 0) {
+                return count + this.countDescendantFiles(item.children);
+            }
+            return count;
+        }, 0);
     }
 
     getGitStatus(): GitStatus | null {

@@ -9,6 +9,7 @@ import { ChangelistManager } from './managers/changelistManager';
 import { ShelfManager } from './managers/shelfManager';
 import { CommitDialog } from './ui/commitDialog';
 import { CommitPanelProvider } from './ui/commitPanelProvider';
+import { BranchDetailsPanel } from './ui/branchDetailsPanel';
 import { FileSystemWatcher } from './watchers/fileSystemWatcher';
 import { CommandRegistry } from './commands/commandRegistry';
 
@@ -45,18 +46,8 @@ export async function activate(context: vscode.ExtensionContext) {
         const stashProvider = new StashProvider(gitService);
 
         // Register tree views
-        const localChangesView = vscode.window.createTreeView('vigit.localChanges', {
-            treeDataProvider: localChangesProvider,
-            showCollapseAll: true
-        });
-
         const gitLogView = vscode.window.createTreeView('vigit.log', {
             treeDataProvider: gitLogProvider,
-            showCollapseAll: true
-        });
-
-        const shelfView = vscode.window.createTreeView('vigit.shelf', {
-            treeDataProvider: shelfProvider,
             showCollapseAll: true
         });
 
@@ -93,6 +84,7 @@ export async function activate(context: vscode.ExtensionContext) {
             localChangesProvider,
             commitDialog
         );
+        const branchDetailsPanel = new BranchDetailsPanel(gitService);
 
         // Register all commands
         const commandRegistry = new CommandRegistry(
@@ -105,19 +97,19 @@ export async function activate(context: vscode.ExtensionContext) {
             shelfProvider,
             branchesProvider,
             stashProvider,
-            commitDialog
+            commitDialog,
+            branchDetailsPanel
         );
         commandRegistry.registerAllCommands();
 
         // Add to subscriptions
         context.subscriptions.push(
-            localChangesView,
             gitLogView,
-            shelfView,
             branchesView,
             stashView,
             fileWatcher,
             commitPanelProvider,
+            branchDetailsPanel,
             vscode.window.registerWebviewViewProvider(CommitPanelProvider.viewId, commitPanelProvider)
         );
 
