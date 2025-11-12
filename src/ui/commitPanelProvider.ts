@@ -746,7 +746,6 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
     <div class="panel">
         <div class="panel-header">
             <div>
-                <h2>Changes</h2>
                 <p id="changelistLabel">No changelist selected</p>
             </div>
             <div class="header-actions">
@@ -799,11 +798,18 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
                 lastCommitMessage: '',
                 changelist: null,
                 autoFilledFromAmend: false,
-                collapsedGroups: new Set()
+                collapsedGroups: new Set(),
+                autoSelectEnabled: true
             };
 
             const persisted = vscode.getState() || {};
-              if (Array.isArray(persisted.selected)) {
+              const hasPersistedSelection = Array.isArray(persisted.selected);
+              if (typeof persisted.autoSelectEnabled === 'boolean') {
+                  state.autoSelectEnabled = persisted.autoSelectEnabled;
+              } else if (hasPersistedSelection) {
+                  state.autoSelectEnabled = false;
+              }
+              if (hasPersistedSelection) {
                   state.selected = new Set(persisted.selected);
               }
               if (typeof persisted.commitMessage === 'string') {
@@ -823,7 +829,8 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
                       selected: Array.from(state.selected),
                       commitMessage: state.commitMessage,
                       amend: state.amend,
-                      collapsedGroups: Array.from(state.collapsedGroups)
+                      collapsedGroups: Array.from(state.collapsedGroups),
+                      autoSelectEnabled: state.autoSelectEnabled
                   });
               };
 
@@ -1101,6 +1108,7 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
             };
 
             const toggleSelection = (filePath, selected) => {
+                state.autoSelectEnabled = false;
                 if (selected) {
                     state.selected.add(filePath);
                 } else {
@@ -1132,10 +1140,13 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
                         state.selected.add(filePath);
                     }
                 });
-                if (state.selected.size === 0) {
+                if (state.selected.size === 0 && state.autoSelectEnabled) {
                     const preferredGroup = state.groups.find(group => group.active && group.files && group.files.length > 0);
                     const source = preferredGroup ? preferredGroup.files : state.files;
                     source.forEach(file => state.selected.add(file.absolutePath));
+                    if (state.selected.size > 0) {
+                        state.autoSelectEnabled = false;
+                    }
                 }
                 persistState();
 
@@ -1180,7 +1191,7 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
                             amendToggle.checked = false;
                             state.amend = false;
                         }
-                        state.selected.clear();
+                        state.autoSelectEnabled = false;
                         persistState();
                         renderGroups();
                         updateButtons();
@@ -1234,6 +1245,7 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
             commitPushBtn.addEventListener('click', () => sendCommit(true));
             refreshBtn.addEventListener('click', () => vscode.postMessage({ type: 'refresh' }));
             selectAll.addEventListener('change', () => {
+                state.autoSelectEnabled = false;
                 if (selectAll.checked) {
                     state.selected = new Set(state.files.map(f => f.absolutePath));
                 } else {

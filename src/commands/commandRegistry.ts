@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { promises as fs } from 'fs';
 import { GitService, GitStatus, GitBranch } from '../services/gitService';
-import { ChangelistManager } from '../managers/changelistManager';
+import { ChangelistManager, Changelist } from '../managers/changelistManager';
 import { ShelfManager, ShelvedChange } from '../managers/shelfManager';
 import { LocalChangesProvider } from '../providers/localChangesProvider';
 import { GitLogProvider } from '../providers/gitLogProvider';
@@ -509,7 +509,7 @@ export class CommandRegistry {
         }
     }
 
-    private async newChangelist(): Promise<void> {
+    private async promptForNewChangelist(): Promise<Changelist | undefined> {
         const name = await vscode.window.showInputBox({
             prompt: 'Enter changelist name',
             placeHolder: 'Changelist name',
@@ -522,7 +522,7 @@ export class CommandRegistry {
         });
 
         if (!name) {
-            return;
+            return undefined;
         }
 
         const description = await vscode.window.showInputBox({
@@ -530,9 +530,16 @@ export class CommandRegistry {
             placeHolder: 'Description'
         });
 
-        this.changelistManager.createChangelist(name, description);
-        await this.localChangesProvider.refresh();
+        const changelist = this.changelistManager.createChangelist(name, description);
         vscode.window.showInformationMessage(`Created changelist: ${name}`);
+        return changelist;
+    }
+
+    private async newChangelist(): Promise<void> {
+        const changelist = await this.promptForNewChangelist();
+        if (changelist) {
+            await this.localChangesProvider.refresh();
+        }
     }
 
     private async moveToChangelist(item: any): Promise<void> {
@@ -541,11 +548,20 @@ export class CommandRegistry {
         }
 
         const changelists = this.changelistManager.getChangelists();
-        const items = changelists.map(cl => ({
+        type MoveTargetPick = vscode.QuickPickItem & {
+            changelist?: Changelist;
+            createNew?: boolean;
+        };
+        const items: MoveTargetPick[] = changelists.map(cl => ({
             label: cl.name,
             description: cl.active ? '(active)' : '',
             changelist: cl
         }));
+        items.push({
+            label: '$(plus) Create New Changelist...',
+            detail: 'Create a new changelist and move the file into it',
+            createNew: true
+        });
 
         const selected = await vscode.window.showQuickPick(items, {
             placeHolder: 'Select target changelist'
@@ -555,7 +571,21 @@ export class CommandRegistry {
             return;
         }
 
-        this.changelistManager.moveFileToChangelist(item.filePath, selected.changelist.id);
+        let targetChangelistId: string | undefined = selected.changelist?.id;
+
+        if (selected.createNew) {
+            const created = await this.promptForNewChangelist();
+            if (!created) {
+                return;
+            }
+            targetChangelistId = created.id;
+        }
+
+        if (!targetChangelistId) {
+            return;
+        }
+
+        this.changelistManager.moveFileToChangelist(item.filePath, targetChangelistId);
         await this.localChangesProvider.refresh();
     }
 
