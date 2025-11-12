@@ -1,0 +1,676 @@
+{
+  "name": "vigit",
+  "displayName": "ViGit - IDEA-Style Git Integration",
+  "description": "Experience JetBrains IDEA's powerful Git version control in VSCode",
+  "version": "1.0.0",
+  "publisher": "vigit",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "SCM Providers",
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "vigit-container",
+          "title": "ViGit Version Control",
+          "icon": "$(source-control)"
+        }
+      ],
+      "panel": [
+        {
+          "id": "vigit-panel",
+          "title": "ViGit Branch Details",
+          "icon": "$(git-branch)"
+        }
+      ]
+    },
+    "views": {
+      "vigit-container": [
+        {
+          "id": "vigit.commitPanel",
+          "name": "Commit",
+          "type": "webview",
+          "icon": "$(git-commit)"
+        },
+        {
+          "id": "vigit.log",
+          "name": "Log",
+          "icon": "$(history)"
+        },
+        {
+          "id": "vigit.stash",
+          "name": "Stashes",
+          "icon": "$(inbox)"
+        },
+        {
+          "id": "vigit.branches",
+          "name": "Branches",
+          "icon": "$(git-branch)"
+        }
+      ],
+      "vigit-panel": [
+        {
+          "id": "vigit.branchDetailsPanel",
+          "name": "Branch Details",
+          "type": "webview",
+          "icon": "$(git-branch)"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "vigit.refresh",
+        "title": "Refresh",
+        "icon": "$(refresh)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.commit",
+        "title": "Commit Changes...",
+        "icon": "$(check)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.commitAndPush",
+        "title": "Commit and Push...",
+        "icon": "$(cloud-upload)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.commitDirectory",
+        "title": "Commit Directory...",
+        "icon": "$(folder)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.showDiff",
+        "title": "Show Diff",
+        "icon": "$(diff)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.showDiffNewTab",
+        "title": "Show Diff in New Tab",
+        "icon": "$(split-horizontal)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.commitFile",
+        "title": "Commit File...",
+        "icon": "$(checklist)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.jumpToSource",
+        "title": "Jump to Source",
+        "icon": "$(go-to-file)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.deleteWorkingTreeFile",
+        "title": "Delete from Disk...",
+        "icon": "$(trash)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.openGitExclude",
+        "title": "Open .git/info/exclude",
+        "icon": "$(file-code)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.showPathDiff",
+        "title": "Show Diff",
+        "icon": "$(diff)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.compareWithRevision",
+        "title": "Compare with Revision...",
+        "icon": "$(git-commit)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.rollbackPath",
+        "title": "Rollback...",
+        "icon": "$(discard)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.copyPatchToClipboard",
+        "title": "Copy Patch to Clipboard",
+        "icon": "$(clippy)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.createPatchFromLocalChanges",
+        "title": "Create Patch from Local Changes...",
+        "icon": "$(diff-added)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.showLocalChangesAsUml",
+        "title": "Show Local Changes as UML",
+        "icon": "$(symbol-class)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.revertFile",
+        "title": "Revert File",
+        "icon": "$(discard)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.stageFile",
+        "title": "Add to Index",
+        "icon": "$(add)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.unstageFile",
+        "title": "Remove from Index",
+        "icon": "$(remove)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.stagePath",
+        "title": "Add",
+        "icon": "$(add)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.newChangelist",
+        "title": "New Changelist...",
+        "icon": "$(new-folder)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.moveToChangelist",
+        "title": "Move to Changelist...",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.deleteChangelist",
+        "title": "Delete Changelist",
+        "icon": "$(trash)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.setActiveChangelist",
+        "title": "Set Active Changelist",
+        "icon": "$(check)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.editChangelist",
+        "title": "Edit Changelist...",
+        "icon": "$(gear)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.shelveChanges",
+        "title": "Shelve Changes...",
+        "icon": "$(archive)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.unshelveChanges",
+        "title": "Unshelve Changes...",
+        "icon": "$(fold-up)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.deleteShelvedChanges",
+        "title": "Delete Shelved Changes",
+        "icon": "$(trash)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.showShelvedDiff",
+        "title": "Show Shelf Diff",
+        "icon": "$(diff)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.stashSave",
+        "title": "Stash Changes...",
+        "icon": "$(archive)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.stashApply",
+        "title": "Apply Stash",
+        "icon": "$(arrow-right)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.stashPop",
+        "title": "Pop Stash",
+        "icon": "$(arrow-circle-down)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.stashDrop",
+        "title": "Drop Stash",
+        "icon": "$(trash)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.showStashDiff",
+        "title": "Show Stash Diff",
+        "icon": "$(diff)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.unstashChanges",
+        "title": "Unstash Changes...",
+        "icon": "$(repo-pull)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.showLog",
+        "title": "Show Git Log",
+        "icon": "$(history)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.showFileHistory",
+        "title": "Show File History",
+        "icon": "$(history)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.annotate",
+        "title": "Annotate (Git Blame)",
+        "icon": "$(file-code)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.checkoutBranch",
+        "title": "Checkout Branch...",
+        "icon": "$(git-branch)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.newBranch",
+        "title": "New Branch...",
+        "icon": "$(add)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.deleteBranch",
+        "title": "Delete Branch",
+        "icon": "$(trash)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.mergeBranch",
+        "title": "Merge Branch...",
+        "icon": "$(git-merge)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.rebaseBranch",
+        "title": "Rebase Branch...",
+        "icon": "$(versions)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.openBranchesView",
+        "title": "Branches...",
+        "icon": "$(git-branch)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.createTag",
+        "title": "New Tag...",
+        "icon": "$(tag)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.cherryPick",
+        "title": "Cherry-Pick...",
+        "icon": "$(git-commit)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.resetHead",
+        "title": "Reset HEAD...",
+        "icon": "$(debug-restart)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.pull",
+        "title": "Pull",
+        "icon": "$(cloud-download)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.push",
+        "title": "Push",
+        "icon": "$(cloud-upload)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.pushBranch",
+        "title": "Push Branch...",
+        "icon": "$(cloud-upload)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.fetch",
+        "title": "Fetch",
+        "icon": "$(sync)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.manageRemotes",
+        "title": "Manage Remotes...",
+        "icon": "$(remote)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.cloneRepository",
+        "title": "Clone...",
+        "icon": "$(repo-clone)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.compareWithBranch",
+        "title": "Compare with Branch or Tag...",
+        "icon": "$(diff)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.showCommitDetails",
+        "title": "Show Commit Details",
+        "icon": "$(info)",
+        "category": "ViGit"
+      },
+      {
+        "command": "vigit.showBranchDetails",
+        "title": "Show Branch History",
+        "icon": "$(list-tree)",
+        "category": "ViGit"
+      }
+    ],
+    "submenus": [
+      {
+        "id": "vigit.gitExplorerMenu",
+        "label": "Git",
+        "icon": "$(source-control)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "vigit.refresh",
+          "when": "view =~ /^vigit\\./",
+          "group": "navigation@1"
+        },
+        {
+          "command": "vigit.stashSave",
+          "when": "view == vigit.stash",
+          "group": "navigation@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "vigit.showStashDiff",
+          "when": "view == vigit.stash && viewItem == stash",
+          "group": "inline@1"
+        },
+        {
+          "command": "vigit.stashApply",
+          "when": "view == vigit.stash && viewItem == stash",
+          "group": "1_actions@1"
+        },
+        {
+          "command": "vigit.stashPop",
+          "when": "view == vigit.stash && viewItem == stash",
+          "group": "1_actions@2"
+        },
+        {
+          "command": "vigit.stashDrop",
+          "when": "view == vigit.stash && viewItem == stash",
+          "group": "2_actions@1"
+        },
+        {
+          "command": "vigit.checkoutBranch",
+          "when": "view == vigit.branches && viewItem == branchLocal",
+          "group": "1_actions@1"
+        },
+        {
+          "command": "vigit.checkoutBranch",
+          "when": "view == vigit.branches && viewItem == branchRemote",
+          "group": "1_actions@1"
+        },
+        {
+          "command": "vigit.pushBranch",
+          "when": "view == vigit.branches && viewItem == branchLocal",
+          "group": "1_actions@2"
+        },
+        {
+          "command": "vigit.mergeBranch",
+          "when": "view == vigit.branches && viewItem == branchLocal",
+          "group": "2_actions@1"
+        },
+        {
+          "command": "vigit.mergeBranch",
+          "when": "view == vigit.branches && viewItem == branchRemote",
+          "group": "2_actions@1"
+        },
+        {
+          "command": "vigit.rebaseBranch",
+          "when": "view == vigit.branches && viewItem == branchLocal",
+          "group": "2_actions@2"
+        },
+        {
+          "command": "vigit.rebaseBranch",
+          "when": "view == vigit.branches && viewItem == branchRemote",
+          "group": "2_actions@2"
+        },
+        {
+          "command": "vigit.deleteBranch",
+          "when": "view == vigit.branches && viewItem == branchLocal",
+          "group": "3_actions@1"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "vigit.showDiff",
+          "when": "false"
+        },
+        {
+          "command": "vigit.moveToChangelist",
+          "when": "false"
+        },
+        {
+          "command": "vigit.setActiveChangelist",
+          "when": "false"
+        },
+        {
+          "command": "vigit.deleteChangelist",
+          "when": "false"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "vigit.showFileHistory",
+          "group": "vigit@1"
+        },
+        {
+          "command": "vigit.annotate",
+          "group": "vigit@2"
+        },
+        {
+          "command": "vigit.compareWithBranch",
+          "group": "vigit@3"
+        }
+      ],
+      "explorer/context": [
+        {
+          "submenu": "vigit.gitExplorerMenu",
+          "when": "resourceScheme == file",
+          "group": "navigation@50"
+        }
+      ],
+      "vigit.gitExplorerMenu": [
+        {
+          "command": "vigit.commitDirectory",
+          "when": "explorerResourceIsFolder",
+          "group": "1_directory@1"
+        },
+        {
+          "command": "vigit.stagePath",
+          "group": "1_directory@2"
+        },
+        {
+          "command": "vigit.openGitExclude",
+          "when": "explorerResourceIsFolder",
+          "group": "1_directory@3"
+        },
+        {
+          "command": "vigit.showPathDiff",
+          "group": "1_directory@4"
+        },
+        {
+          "command": "vigit.compareWithRevision",
+          "group": "1_directory@5"
+        },
+        {
+          "command": "vigit.compareWithBranch",
+          "group": "1_directory@6"
+        },
+        {
+          "command": "vigit.showLog",
+          "group": "1_directory@7"
+        },
+        {
+          "command": "vigit.rollbackPath",
+          "group": "1_directory@8"
+        },
+        {
+          "command": "vigit.push",
+          "group": "2_remote@1"
+        },
+        {
+          "command": "vigit.pull",
+          "group": "2_remote@2"
+        },
+        {
+          "command": "vigit.fetch",
+          "group": "2_remote@3"
+        },
+        {
+          "command": "vigit.mergeBranch",
+          "group": "3_branch@1"
+        },
+        {
+          "command": "vigit.rebaseBranch",
+          "group": "3_branch@2"
+        },
+        {
+          "command": "vigit.openBranchesView",
+          "group": "3_branch@3"
+        },
+        {
+          "command": "vigit.newBranch",
+          "group": "3_branch@4"
+        },
+        {
+          "command": "vigit.createTag",
+          "group": "3_branch@5"
+        },
+        {
+          "command": "vigit.resetHead",
+          "group": "3_branch@6"
+        },
+        {
+          "command": "vigit.stashSave",
+          "group": "4_stash@1"
+        },
+        {
+          "command": "vigit.unstashChanges",
+          "group": "4_stash@2"
+        },
+        {
+          "command": "vigit.manageRemotes",
+          "group": "5_management@1"
+        },
+        {
+          "command": "vigit.cloneRepository",
+          "group": "5_management@2"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "ViGit",
+      "properties": {
+        "vigit.autoRefresh": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically refresh git status when files change"
+        },
+        "vigit.autoStage": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically stage files when they are added to a changelist"
+        },
+        "vigit.defaultChangelist": {
+          "type": "string",
+          "default": "Default",
+          "description": "Name of the default changelist"
+        },
+        "vigit.showUnversionedFiles": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show unversioned files in Local Changes"
+        },
+        "vigit.commitMessageTemplate": {
+          "type": "string",
+          "default": "",
+          "description": "Template for commit messages"
+        },
+        "vigit.logGraph": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show branch graph in Git Log"
+        },
+        "vigit.logLimit": {
+          "type": "number",
+          "default": 100,
+          "description": "Number of commits to show in Git Log"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/node": "^18.19.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "@vscode/vsce": "^3.7.0",
+    "eslint": "^8.54.0",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "simple-git": "^3.21.0"
+  }
+}
