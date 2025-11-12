@@ -32,6 +32,11 @@ export interface GitBranch {
     behind?: number;
 }
 
+export interface GitDiffEntry {
+    path: string;
+    status: string;
+}
+
 export interface GitStashEntry {
     hash: string;
     message: string;
@@ -140,6 +145,10 @@ export class GitService {
         }
     }
 
+    async pushTags(remote: string = 'origin'): Promise<void> {
+        await this.git.raw(['push', remote, '--tags']);
+    }
+
     async pull(remote: string = 'origin', branch?: string): Promise<void> {
         if (branch) {
             await this.git.pull(remote, branch);
@@ -236,6 +245,53 @@ export class GitService {
             parents: [],
             refs: (commit as any).refs ? String((commit as any).refs).split(',').map((r: string) => r.trim()).filter((r: string) => r) : []
         }));
+    }
+
+    async getCommitsBetween(baseRef: string, headRef: string, maxCount: number = 200): Promise<GitCommit[]> {
+        const log: LogResult = await this.git.log({
+            from: baseRef,
+            to: headRef,
+            maxCount
+        });
+
+        return log.all.map(commit => ({
+            hash: commit.hash,
+            abbrevHash: commit.hash.substring(0, 7),
+            author: (commit as any).author_name || '',
+            email: (commit as any).author_email || '',
+            date: new Date(commit.date),
+            message: commit.message,
+            parents: [],
+            refs: []
+        }));
+    }
+
+    async getDiffSummaryBetween(baseRef: string, headRef: string): Promise<GitDiffEntry[]> {
+        const diffText = await this.git.diff(['--name-status', `${baseRef}..${headRef}`]);
+        const lines = diffText.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+        const entries: GitDiffEntry[] = [];
+
+        for (const line of lines) {
+            const [statusRaw, ...paths] = line.split('\t');
+            if (!statusRaw) {
+                continue;
+            }
+
+            if (statusRaw.startsWith('R') && paths.length >= 2) {
+                entries.push({
+                    status: 'R',
+                    path: `${paths[0]} → ${paths[1]}`
+                });
+                continue;
+            }
+
+            entries.push({
+                status: statusRaw,
+                path: paths[0] ?? ''
+            });
+        }
+
+        return entries;
     }
 
     async getCommitDiff(commitHash: string): Promise<string> {

@@ -11,6 +11,7 @@ import { BranchesProvider } from '../providers/branchesProvider';
 import { StashProvider, StashTreeItem } from '../providers/stashProvider';
 import { CommitDialog } from '../ui/commitDialog';
 import { BranchDetailsPanel } from '../ui/branchDetailsPanel';
+import { PushDialog } from '../ui/pushDialog';
 import { DiffViewHelper } from '../helpers/diffViewHelper';
 import { AnnotateHelper } from '../helpers/annotateHelper';
 
@@ -26,6 +27,7 @@ export class CommandRegistry {
     private stashProvider: StashProvider;
     private commitDialog: CommitDialog;
     private branchDetailsPanel: BranchDetailsPanel;
+    private pushDialog: PushDialog;
 
     constructor(
         context: vscode.ExtensionContext,
@@ -38,7 +40,8 @@ export class CommandRegistry {
         branchesProvider: BranchesProvider,
         stashProvider: StashProvider,
         commitDialog: CommitDialog,
-        branchDetailsPanel: BranchDetailsPanel
+        branchDetailsPanel: BranchDetailsPanel,
+        pushDialog: PushDialog
     ) {
         this.context = context;
         this.gitService = gitService;
@@ -51,6 +54,7 @@ export class CommandRegistry {
         this.stashProvider = stashProvider;
         this.commitDialog = commitDialog;
         this.branchDetailsPanel = branchDetailsPanel;
+        this.pushDialog = pushDialog;
     }
 
     registerAllCommands(): void {
@@ -113,11 +117,12 @@ export class CommandRegistry {
         this.register('vigit.annotate', () => this.annotate());
 
         // Branch commands
-        this.register('vigit.checkoutBranch', (branchName: string) => this.checkoutBranch(branchName));
+        this.register('vigit.checkoutBranch', (item: any) => this.checkoutBranch(item));
         this.register('vigit.newBranch', () => this.newBranch());
         this.register('vigit.deleteBranch', (item: any) => this.deleteBranch(item));
         this.register('vigit.mergeBranch', (item: any) => this.mergeBranch(item));
         this.register('vigit.rebaseBranch', (item: any) => this.rebaseBranch(item));
+        this.register('vigit.pushBranch', (item: any) => this.pushBranch(item));
         this.register('vigit.openBranchesView', () => this.openBranchesView());
         this.register('vigit.createTag', () => this.createTag());
 
@@ -987,7 +992,33 @@ export class CommandRegistry {
         }
     }
 
-    private async checkoutBranch(branchName: string): Promise<void> {
+    private async checkoutBranch(item: any): Promise<void> {
+        let branchName: string | undefined =
+            typeof item === 'string' ? item : item?.branch?.name;
+
+        if (!branchName) {
+            const branches = await this.gitService.getBranches();
+            const pick = await vscode.window.showQuickPick(
+                branches.map(branch => ({
+                    label: branch.name,
+                    description: branch.current
+                        ? 'current branch'
+                        : branch.upstream
+                            ? `tracking ${branch.upstream}`
+                            : branch.remote
+                                ? 'remote branch'
+                                : 'local branch',
+                    branch
+                })),
+                { placeHolder: 'Select branch to checkout' }
+            );
+            branchName = pick?.branch.name;
+        }
+
+        if (!branchName) {
+            return;
+        }
+
         try {
             await vscode.window.withProgress({
                 location: vscode.ProgressLocation.Notification,
@@ -1132,6 +1163,44 @@ export class CommandRegistry {
             } catch (error) {
                 vscode.window.showErrorMessage(`Failed to rebase: ${error}`);
             }
+        }
+    }
+
+    private async pushBranch(item: any): Promise<void> {
+        let branch: GitBranch | undefined = item?.branch;
+
+        if (!branch) {
+            const localBranches = (await this.gitService.getBranches()).filter(b => !b.remote);
+            if (localBranches.length === 0) {
+                vscode.window.showWarningMessage('No local branches available to push.');
+                return;
+            }
+
+            const pick = await vscode.window.showQuickPick(
+                localBranches.map(localBranch => ({
+                    label: localBranch.name,
+                    description: localBranch.upstream ? `tracking ${localBranch.upstream}` : 'no upstream',
+                    branch: localBranch
+                })),
+                { placeHolder: 'Select local branch to push' }
+            );
+            branch = pick?.branch;
+        }
+
+        if (!branch || branch.remote) {
+            if (!branch) {
+                vscode.window.showWarningMessage('No branch selected to push.');
+            } else {
+                vscode.window.showWarningMessage('Push is only available for local branches.');
+            }
+            return;
+        }
+
+        try {
+            await this.pushDialog.show(branch);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            vscode.window.showErrorMessage(`Failed to open push dialog: ${message}`);
         }
     }
 

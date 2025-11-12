@@ -360,6 +360,12 @@
         "category": "ViGit"
       },
       {
+        "command": "vigit.pushBranch",
+        "title": "Push Branch...",
+        "icon": "$(cloud-upload)",
+        "category": "ViGit"
+      },
+      {
         "command": "vigit.fetch",
         "title": "Fetch",
         "icon": "$(sync)",
@@ -439,22 +445,42 @@
         },
         {
           "command": "vigit.checkoutBranch",
-          "when": "view == vigit.branches && viewItem == branch",
+          "when": "view == vigit.branches && viewItem == branchLocal",
           "group": "1_actions@1"
         },
         {
+          "command": "vigit.checkoutBranch",
+          "when": "view == vigit.branches && viewItem == branchRemote",
+          "group": "1_actions@1"
+        },
+        {
+          "command": "vigit.pushBranch",
+          "when": "view == vigit.branches && viewItem == branchLocal",
+          "group": "1_actions@2"
+        },
+        {
           "command": "vigit.mergeBranch",
-          "when": "view == vigit.branches && viewItem == branch",
+          "when": "view == vigit.branches && viewItem == branchLocal",
+          "group": "2_actions@1"
+        },
+        {
+          "command": "vigit.mergeBranch",
+          "when": "view == vigit.branches && viewItem == branchRemote",
           "group": "2_actions@1"
         },
         {
           "command": "vigit.rebaseBranch",
-          "when": "view == vigit.branches && viewItem == branch",
+          "when": "view == vigit.branches && viewItem == branchLocal",
+          "group": "2_actions@2"
+        },
+        {
+          "command": "vigit.rebaseBranch",
+          "when": "view == vigit.branches && viewItem == branchRemote",
           "group": "2_actions@2"
         },
         {
           "command": "vigit.deleteBranch",
-          "when": "view == vigit.branches && viewItem == branch",
+          "when": "view == vigit.branches && viewItem == branchLocal",
           "group": "3_actions@1"
         }
       ],

@@ -10,6 +10,7 @@ import { ShelfManager } from './managers/shelfManager';
 import { CommitDialog } from './ui/commitDialog';
 import { CommitPanelProvider } from './ui/commitPanelProvider';
 import { BranchDetailsPanel } from './ui/branchDetailsPanel';
+import { PushDialog } from './ui/pushDialog';
 import { FileSystemWatcher } from './watchers/fileSystemWatcher';
 import { CommandRegistry } from './commands/commandRegistry';
 
@@ -85,6 +86,7 @@ export async function activate(context: vscode.ExtensionContext) {
             commitDialog
         );
         const branchDetailsPanel = new BranchDetailsPanel(gitService);
+        const pushDialog = new PushDialog(gitService, branchesProvider);
 
         // Register all commands
         const commandRegistry = new CommandRegistry(
@@ -98,7 +100,8 @@ export async function activate(context: vscode.ExtensionContext) {
             branchesProvider,
             stashProvider,
             commitDialog,
-            branchDetailsPanel
+            branchDetailsPanel,
+            pushDialog
         );
         commandRegistry.registerAllCommands();
 
@@ -110,6 +113,7 @@ export async function activate(context: vscode.ExtensionContext) {
             fileWatcher,
             commitPanelProvider,
             branchDetailsPanel,
+            pushDialog,
             vscode.window.registerWebviewViewProvider(CommitPanelProvider.viewId, commitPanelProvider),
             vscode.window.registerWebviewViewProvider(BranchDetailsPanel.viewId, branchDetailsPanel)
         );

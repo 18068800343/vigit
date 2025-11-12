@@ -12,7 +12,7 @@ export class BranchTreeItem extends vscode.TreeItem {
         super(label, collapsibleState);
         
         if (branch) {
-            this.contextValue = 'branch';
+            this.contextValue = branch.remote ? 'branchRemote' : 'branchLocal';
             this.tooltip = this.createTooltip();
             this.iconPath = this.getIcon();
             this.command = {
