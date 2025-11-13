@@ -91,8 +91,6 @@ Customize ViGit behavior in VSCode settings:
    - `vigit.autoStage`: Auto-stage files in changelists
    - `vigit.defaultChangelist`: Name of default changelist
    - `vigit.showUnversionedFiles`: Show untracked files
-   - `vigit.logGraph`: Show branch graph in log
-   - `vigit.logLimit`: Number of commits to display
 
 ### Example Configuration
 
@@ -104,8 +102,6 @@ Add to your `settings.json`:
   "vigit.autoStage": false,
   "vigit.defaultChangelist": "Default",
   "vigit.showUnversionedFiles": true,
-  "vigit.logGraph": true,
-  "vigit.logLimit": 100,
   "vigit.commitMessageTemplate": "[TASK-ID] "
 }
 ```
@@ -126,7 +122,6 @@ Add to your `settings.json`:
 
 ### Performance Issues
 
-- Reduce `vigit.logLimit` for large repositories
 - Disable `vigit.autoRefresh` if needed
 - Close unused views to reduce resource usage
 

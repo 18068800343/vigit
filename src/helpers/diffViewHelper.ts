@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { GitService } from '../services/gitService';
+import { CommitFileChange, GitService } from '../services/gitService';
 
 export class DiffViewHelper {
     static async showDiff(
@@ -91,12 +91,72 @@ export class DiffViewHelper {
             });
 
             await vscode.window.showTextDocument(doc, {
-                preview: true,
-                viewColumn: vscode.ViewColumn.Beside
+                preview: false,
+                viewColumn: vscode.ViewColumn.Active
             });
         } catch (error) {
             console.error('Error showing commit diff:', error);
             throw error;
+        }
+    }
+
+    static async showCommitFileDiff(
+        gitService: GitService,
+        commitHash: string,
+        parentHash: string | undefined,
+        change: CommitFileChange
+    ): Promise<void> {
+        const statusCode = change.status.charAt(0);
+        const workspaceRoot = gitService.getWorkspaceRoot();
+        const currentFsPath = path.join(workspaceRoot, change.path);
+        const previousFsPath = path.join(
+            workspaceRoot,
+            change.previousPath ?? change.path
+        );
+
+        let leftContent = '';
+        let rightContent = '';
+
+        if (statusCode !== 'A' && parentHash) {
+            leftContent = await gitService.getFileContent(previousFsPath, parentHash);
+        }
+
+        if (statusCode !== 'D') {
+            rightContent = await gitService.getFileContent(currentFsPath, commitHash);
+        }
+
+        const leftLabel = statusCode === 'A'
+            ? `${path.basename(change.path)} (before)`
+            : `${path.basename(change.previousPath ?? change.path)} (${parentHash?.substring(0, 7) ?? 'no-parent'})`;
+        const rightLabel = statusCode === 'D'
+            ? `${path.basename(change.path)} (after removed)`
+            : `${path.basename(change.path)} (${commitHash.substring(0, 7)})`;
+
+        const leftScheme = `vigit-commit-left-${Date.now()}`;
+        const rightScheme = `vigit-commit-right-${Date.now()}`;
+
+        const leftUri = vscode.Uri.parse(`${leftScheme}:${leftLabel}`);
+        const rightUri = vscode.Uri.parse(`${rightScheme}:${rightLabel}`);
+
+        const leftProvider = new DiffContentProvider(leftContent);
+        const rightProvider = new DiffContentProvider(rightContent);
+
+        const leftRegistration = vscode.workspace.registerTextDocumentContentProvider(leftScheme, leftProvider);
+        const rightRegistration = vscode.workspace.registerTextDocumentContentProvider(rightScheme, rightProvider);
+
+        try {
+            await vscode.commands.executeCommand(
+                'vscode.diff',
+                leftUri,
+                rightUri,
+                `${path.basename(change.path)} (${commitHash.substring(0, 7)})`,
+                { preview: false, viewColumn: vscode.ViewColumn.Beside }
+            );
+        } finally {
+            setTimeout(() => {
+                leftRegistration.dispose();
+                rightRegistration.dispose();
+            }, 100);
         }
     }
 
@@ -118,8 +178,8 @@ export class DiffViewHelper {
                 : `Diff with ${branchName}`;
 
             await vscode.window.showTextDocument(doc, {
-                preview: true,
-                viewColumn: vscode.ViewColumn.Beside
+                preview: false,
+                viewColumn: vscode.ViewColumn.Active
             });
         } catch (error) {
             console.error('Error showing branch diff:', error);

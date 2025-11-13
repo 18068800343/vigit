@@ -129,7 +129,6 @@ Right-click in any file editor:
 | Command | Description |
 |---------|-------------|
 | `vigit.refresh` | Refresh all ViGit views |
-| `vigit.showLog` | Open Git Log view |
 
 ### Commit Commands
 

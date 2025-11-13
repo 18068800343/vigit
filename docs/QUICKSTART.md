@@ -103,10 +103,10 @@ In the **Local Changes** view:
 ### Workflow 3: Reviewing History
 
 ```
-1. Go to Log view
-2. Browse commits
-3. Click a commit to see details
-4. Right-click for actions:
+1. 在 Branches 视图中选择任意分支
+2. VIGIT BRANCH DETAILS 面板会列出最近的提交
+3. 单击提交以查看文件树，双击或右键执行操作
+4. 常见操作：
    - Cherry-pick
    - Reset to this commit
    - Copy commit hash
@@ -222,7 +222,6 @@ ViGit: Commit Changes
 ViGit: Commit and Push
 ViGit: New Changelist
 ViGit: Shelve Changes
-ViGit: Show Git Log
 ViGit: Show File History
 ViGit: Annotate (Git Blame)
 ViGit: New Branch

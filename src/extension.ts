@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import { GitService } from './services/gitService';
 import { LocalChangesProvider } from './providers/localChangesProvider';
-import { GitLogProvider } from './providers/gitLogProvider';
 import { ShelfProvider } from './providers/shelfProvider';
 import { BranchesProvider } from './providers/branchesProvider';
 import { StashProvider } from './providers/stashProvider';
@@ -41,17 +40,11 @@ export async function activate(context: vscode.ExtensionContext) {
             gitService,
             changelistManager
         );
-        const gitLogProvider = new GitLogProvider(workspaceRoot, gitService);
         const shelfProvider = new ShelfProvider(shelfManager);
         const branchesProvider = new BranchesProvider(workspaceRoot, gitService);
         const stashProvider = new StashProvider(gitService);
 
         // Register tree views
-        const gitLogView = vscode.window.createTreeView('vigit.log', {
-            treeDataProvider: gitLogProvider,
-            showCollapseAll: true
-        });
-
         const branchesView = vscode.window.createTreeView('vigit.branches', {
             treeDataProvider: branchesProvider,
             showCollapseAll: true
@@ -95,7 +88,6 @@ export async function activate(context: vscode.ExtensionContext) {
             changelistManager,
             shelfManager,
             localChangesProvider,
-            gitLogProvider,
             shelfProvider,
             branchesProvider,
             stashProvider,
@@ -107,7 +99,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
         // Add to subscriptions
         context.subscriptions.push(
-            gitLogView,
             branchesView,
             stashView,
             fileWatcher,

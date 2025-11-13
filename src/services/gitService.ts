@@ -19,7 +19,6 @@ export interface GitCommit {
     message: string;
     parents: string[];
     refs: string[];
-    graph?: string;
 }
 
 export interface GitBranch {
@@ -35,6 +34,12 @@ export interface GitBranch {
 export interface GitDiffEntry {
     path: string;
     status: string;
+}
+
+export interface CommitFileChange {
+    path: string;
+    status: string;
+    previousPath?: string;
 }
 
 export interface GitStashEntry {
@@ -161,109 +166,44 @@ export class GitService {
         await this.git.fetch(remote);
     }
 
-    async getLog(maxCount: number = 100, includeGraph: boolean = false): Promise<GitCommit[]> {
-        const log = await this.git.log({
-            maxCount
+    async getLog(maxCount: number = 100): Promise<GitCommit[]> {
+        const log = await this.runFormattedLog({
+            maxCount,
+            format: this.getLogFormat()
         });
 
-        const commits: GitCommit[] = log.all.map(commit => ({
-            hash: commit.hash,
-            abbrevHash: commit.hash.substring(0, 7),
-            author: (commit as any).author_name || '',
-            email: (commit as any).author_email || '',
-            date: new Date(commit.date),
-            message: commit.message,
-            parents: [],
-            refs: (commit as any).refs ? String((commit as any).refs).split(',').map((r: string) => r.trim()).filter((r: string) => r) : []
-        }));
-
-        if (includeGraph) {
-            try {
-                const graphOutput = await this.git.raw([
-                    'log',
-                    `--max-count=${maxCount}`,
-                    '--graph',
-                    '--pretty=format:%H%x09%s'
-                ]);
-
-                const graphMap = new Map<string, string>();
-                const lines = graphOutput.split('\n');
-
-                for (const line of lines) {
-                    const match = line.match(/([\s\|\*\\\/]+)([0-9a-f]{7,40})\t/);
-                    if (!match) {
-                        continue;
-                    }
-                    const graphPart = match[1].replace(/\s+$/g, '');
-                    const hash = match[2];
-                    graphMap.set(hash, graphPart.trimEnd());
-                }
-
-                commits.forEach(commit => {
-                    const graph = graphMap.get(commit.hash);
-                    if (graph) {
-                        commit.graph = graph;
-                    }
-                });
-            } catch (error) {
-                console.error('Failed to load git graph:', error);
-            }
-        }
-
-        return commits;
+        return log.all.map(entry => this.mapLogEntry(entry));
     }
 
     async getFileLog(filePath: string, maxCount: number = 100): Promise<GitCommit[]> {
         const relativePath = path.relative(this.workspaceRoot, filePath);
-        const log: LogResult = await this.git.log({
+        const log = await this.runFormattedLog({
             file: relativePath,
-            maxCount
+            maxCount,
+            format: this.getLogFormat()
         });
 
-        return log.all.map(commit => ({
-            hash: commit.hash,
-            abbrevHash: commit.hash.substring(0, 7),
-            author: (commit as any).author_name || '',
-            email: (commit as any).author_email || '',
-            date: new Date(commit.date),
-            message: commit.message,
-            parents: [],
-            refs: []
-        }));
+        return log.all.map(entry => this.mapLogEntry(entry));
     }
 
     async getBranchLog(branchName: string, maxCount: number = 100): Promise<GitCommit[]> {
-        const log: LogResult = await this.git.log([branchName, '-n', String(maxCount)]);
+        const log = await this.runFormattedLog({
+            maxCount,
+            format: this.getLogFormat()
+        }, [branchName]);
 
-        return log.all.map(commit => ({
-            hash: commit.hash,
-            abbrevHash: commit.hash.substring(0, 7),
-            author: (commit as any).author_name || '',
-            email: (commit as any).author_email || '',
-            date: new Date(commit.date),
-            message: commit.message,
-            parents: [],
-            refs: (commit as any).refs ? String((commit as any).refs).split(',').map((r: string) => r.trim()).filter((r: string) => r) : []
-        }));
+        return log.all.map(entry => this.mapLogEntry(entry));
     }
 
     async getCommitsBetween(baseRef: string, headRef: string, maxCount: number = 200): Promise<GitCommit[]> {
-        const log: LogResult = await this.git.log({
+        const log = await this.runFormattedLog({
             from: baseRef,
             to: headRef,
-            maxCount
+            maxCount,
+            format: this.getLogFormat()
         });
 
-        return log.all.map(commit => ({
-            hash: commit.hash,
-            abbrevHash: commit.hash.substring(0, 7),
-            author: (commit as any).author_name || '',
-            email: (commit as any).author_email || '',
-            date: new Date(commit.date),
-            message: commit.message,
-            parents: [],
-            refs: []
-        }));
+        return log.all.map(entry => this.mapLogEntry(entry));
     }
 
     async getDiffSummaryBetween(baseRef: string, headRef: string): Promise<GitDiffEntry[]> {
@@ -296,6 +236,54 @@ export class GitService {
 
     async getCommitDiff(commitHash: string): Promise<string> {
         return await this.git.show([commitHash]);
+    }
+
+    async getCommitFileChanges(commitHash: string): Promise<CommitFileChange[]> {
+        const output = await this.git.show(['--name-status', '--pretty=format:', commitHash]);
+        const lines = output.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+        const changes: CommitFileChange[] = [];
+
+        for (const line of lines) {
+            const segments = line.split('\t').map(entry => entry.trim()).filter(Boolean);
+            if (segments.length === 0) {
+                continue;
+            }
+
+            const status = segments[0];
+            if (status.startsWith('R') || status.startsWith('C')) {
+                if (segments.length >= 3) {
+                    changes.push({
+                        status,
+                        previousPath: segments[1],
+                        path: segments[2]
+                    });
+                }
+                continue;
+            }
+
+            changes.push({
+                status,
+                path: segments[1] ?? ''
+            });
+        }
+
+        return changes;
+    }
+
+    async getCommitPatch(commitHash: string): Promise<string> {
+        return await this.git.raw(['format-patch', '-1', commitHash, '--stdout']);
+    }
+
+    async checkoutCommit(commitHash: string): Promise<void> {
+        await this.git.checkout(commitHash);
+    }
+
+    async resetToCommit(commitHash: string, mode: 'soft' | 'mixed' | 'hard' = 'hard'): Promise<void> {
+        await this.git.reset([`--${mode}`, commitHash]);
+    }
+
+    async revertCommit(commitHash: string): Promise<void> {
+        await this.git.raw(['revert', '--no-edit', commitHash]);
     }
 
     async getBranches(): Promise<GitBranch[]> {
@@ -337,6 +325,14 @@ export class GitService {
         } else {
             await this.git.checkoutLocalBranch(branchName);
         }
+    }
+
+    async createBranchAtCommit(branchName: string, commitHash: string, checkout: boolean = false): Promise<void> {
+        if (checkout) {
+            await this.git.checkoutBranch(branchName, commitHash);
+            return;
+        }
+        await this.git.raw(['branch', branchName, commitHash]);
     }
 
     async checkoutBranch(branchName: string): Promise<void> {
@@ -515,6 +511,50 @@ export class GitService {
             console.warn('ViGit: unable to load branch tracking info', error);
         }
         return map;
+    }
+
+    private getLogFormat(): Record<string, string> {
+        return {
+            hash: '%H',
+            date: '%ai',
+            message: '%s',
+            refs: '%D',
+            parents: '%P',
+            author_name: '%an',
+            author_email: '%ae'
+        };
+    }
+
+    private async runFormattedLog(
+        options?: Parameters<SimpleGit['log']>[0],
+        customArgs?: string[]
+    ): Promise<LogResult<Record<string, string>>> {
+        const logFn = this.git.log as unknown as (
+            options?: Parameters<SimpleGit['log']>[0],
+            customArgs?: string[]
+        ) => Promise<LogResult<Record<string, string>>>;
+        return logFn.call(this.git, options, customArgs);
+    }
+
+    private mapLogEntry(entry: any): GitCommit {
+        const parents = typeof entry.parents === 'string'
+            ? entry.parents.split(' ').map((value: string) => value.trim()).filter(Boolean)
+            : [];
+
+        const refs = entry.refs
+            ? String(entry.refs).split(',').map((r: string) => r.trim()).filter(Boolean)
+            : [];
+
+        return {
+            hash: entry.hash,
+            abbrevHash: entry.hash ? entry.hash.substring(0, 7) : '',
+            author: entry.author_name || '',
+            email: entry.author_email || '',
+            date: entry.date ? new Date(entry.date) : new Date(),
+            message: entry.message || '',
+            parents,
+            refs
+        };
     }
 
     private toGitPath(filePath: string): string {

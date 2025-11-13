@@ -41,11 +41,6 @@
           "icon": "$(git-commit)"
         },
         {
-          "id": "vigit.log",
-          "name": "Log",
-          "icon": "$(history)"
-        },
-        {
           "id": "vigit.stash",
           "name": "Stashes",
           "icon": "$(inbox)"
@@ -273,12 +268,6 @@
         "command": "vigit.unstashChanges",
         "title": "Unstash Changes...",
         "icon": "$(repo-pull)",
-        "category": "ViGit"
-      },
-      {
-        "command": "vigit.showLog",
-        "title": "Show Git Log",
-        "icon": "$(history)",
         "category": "ViGit"
       },
       {
@@ -551,10 +540,6 @@
           "group": "1_directory@6"
         },
         {
-          "command": "vigit.showLog",
-          "group": "1_directory@7"
-        },
-        {
           "command": "vigit.rollbackPath",
           "group": "1_directory@8"
         },
@@ -639,16 +624,6 @@
           "type": "string",
           "default": "",
           "description": "Template for commit messages"
-        },
-        "vigit.logGraph": {
-          "type": "boolean",
-          "default": true,
-          "description": "Show branch graph in Git Log"
-        },
-        "vigit.logLimit": {
-          "type": "number",
-          "default": 100,
-          "description": "Number of commits to show in Git Log"
         }
       }
     }

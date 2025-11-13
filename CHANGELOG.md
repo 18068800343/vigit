@@ -2,6 +2,15 @@
 
 All notable changes to the "vigit" extension will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- Branch Details 面板新增提交文件树，单击文件即可直接在 VSCode 中打开 diff，并缓存最近请求的文件列表
+- 提交列表右键提供 IDEA 式菜单（复制哈希、Cherry-pick、Reset、创建补丁/分支/Tag 等操作）
+
+### Removed
+- LOG 视图（`vigit.log`）及相关命令、设置项与文档引用，历史信息统一通过 Branch Details 呈现
+
 ## [1.1.0] - 2025-11-10
 
 ### Added

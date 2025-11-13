@@ -5,7 +5,6 @@ import { GitService, GitStatus, GitBranch } from '../services/gitService';
 import { ChangelistManager, Changelist } from '../managers/changelistManager';
 import { ShelfManager, ShelvedChange } from '../managers/shelfManager';
 import { LocalChangesProvider } from '../providers/localChangesProvider';
-import { GitLogProvider } from '../providers/gitLogProvider';
 import { ShelfProvider } from '../providers/shelfProvider';
 import { BranchesProvider } from '../providers/branchesProvider';
 import { StashProvider, StashTreeItem } from '../providers/stashProvider';
@@ -21,7 +20,6 @@ export class CommandRegistry {
     private changelistManager: ChangelistManager;
     private shelfManager: ShelfManager;
     private localChangesProvider: LocalChangesProvider;
-    private gitLogProvider: GitLogProvider;
     private shelfProvider: ShelfProvider;
     private branchesProvider: BranchesProvider;
     private stashProvider: StashProvider;
@@ -35,7 +33,6 @@ export class CommandRegistry {
         changelistManager: ChangelistManager,
         shelfManager: ShelfManager,
         localChangesProvider: LocalChangesProvider,
-        gitLogProvider: GitLogProvider,
         shelfProvider: ShelfProvider,
         branchesProvider: BranchesProvider,
         stashProvider: StashProvider,
@@ -48,7 +45,6 @@ export class CommandRegistry {
         this.changelistManager = changelistManager;
         this.shelfManager = shelfManager;
         this.localChangesProvider = localChangesProvider;
-        this.gitLogProvider = gitLogProvider;
         this.shelfProvider = shelfProvider;
         this.branchesProvider = branchesProvider;
         this.stashProvider = stashProvider;
@@ -109,8 +105,6 @@ export class CommandRegistry {
         this.register('vigit.stashDrop', (item: any) => this.stashDrop(item));
         this.register('vigit.showStashDiff', (item: any) => this.showStashDiff(item));
 
-        // Log commands
-        this.register('vigit.showLog', () => this.showLog());
         this.register('vigit.showFileHistory', () => this.showFileHistory());
         this.register('vigit.showCommitDetails', (commit: any) => this.showCommitDetails(commit));
         this.register('vigit.showBranchDetails', (branch: GitBranch) => this.showBranchDetails(branch));
@@ -150,7 +144,6 @@ export class CommandRegistry {
     private async refresh(): Promise<void> {
         await Promise.all([
             this.localChangesProvider.refresh(),
-            this.gitLogProvider.refresh(),
             this.branchesProvider.refresh(),
             this.stashProvider.refresh()
         ]);
@@ -938,11 +931,6 @@ export class CommandRegistry {
         } catch (error) {
             vscode.window.showErrorMessage(`Failed to restore stash: ${error}`);
         }
-    }
-
-    private async showLog(): Promise<void> {
-        await this.gitLogProvider.refresh();
-        vscode.commands.executeCommand('vigit.log.focus');
     }
 
     private async showFileHistory(): Promise<void> {
