@@ -422,17 +422,17 @@ export class GitService {
         return await this.git.show([stashId]);
     }
 
-    getWorkspaceRoot(): string {
-        return this.workspaceRoot;
-    }
-
     async getFileContent(filePath: string, ref: string = 'HEAD'): Promise<string> {
         try {
-            const relativePath = path.relative(this.workspaceRoot, filePath);
-            return await this.git.show([`${ref}:${relativePath}`]);
+            const gitPath = this.toGitPath(filePath);
+            return await this.git.show([`${ref}:${gitPath}`]);
         } catch (error) {
             return '';
         }
+    }
+
+    getWorkspaceRoot(): string {
+        return this.workspaceRoot;
     }
 
     async compareWithBranch(branchName: string, filePath?: string): Promise<string> {
@@ -515,5 +515,10 @@ export class GitService {
             console.warn('ViGit: unable to load branch tracking info', error);
         }
         return map;
+    }
+
+    private toGitPath(filePath: string): string {
+        const relativePath = path.relative(this.workspaceRoot, filePath);
+        return relativePath.split(path.sep).join(path.posix.sep);
     }
 }
