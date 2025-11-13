@@ -750,19 +750,19 @@ export class BranchDetailsPanel implements vscode.WebviewViewProvider, vscode.Di
             state.commits.forEach(commit => commitMap.set(commit.hash, commit));
 
             const menuItems = [
-                { id: 'copyHash', label: '复制提交哈希' },
-                { id: 'createPatch', label: '创建补丁...' },
-                { id: 'cherryPick', label: 'Cherry-pick...' },
-                { id: 'checkout', label: '切换到此版本' },
-                { id: 'compareLocal', label: '与当前工作区比较' },
-                { id: 'resetHere', label: 'Reset 当前分支至此...' },
-                { id: 'revert', label: 'Revert 此提交' },
+                { id: 'copyHash', label: 'Copy Revision Number' },
+                { id: 'createPatch', label: 'Create Patch...' },
+                { id: 'cherryPick', label: 'Cherry-Pick...' },
+                { id: 'checkout', label: 'Checkout Revision' },
+                { id: 'compareLocal', label: 'Compare with Local' },
+                { id: 'resetHere', label: 'Reset Current Branch to Here...' },
+                { id: 'revert', label: 'Revert Commit' },
                 { separator: true },
-                { id: 'branchHere', label: '基于此提交创建分支...' },
-                { id: 'tagHere', label: '基于此提交创建 Tag...' },
+                { id: 'branchHere', label: 'New Branch...' },
+                { id: 'tagHere', label: 'New Tag...' },
                 { separator: true },
-                { id: 'goParent', label: '跳转到父提交', local: true },
-                { id: 'goChild', label: '跳转到子提交', local: true }
+                { id: 'goParent', label: 'Go to Parent Commit', local: true },
+                { id: 'goChild', label: 'Go to Child Commit', local: true }
             ];
 
             const formatDate = (iso) => {

@@ -3,7 +3,7 @@
   "displayName": "ViGit - IDEA-Style Git Integration",
   "description": "Experience JetBrains IDEA's powerful Git version control in VSCode",
   "version": "1.0.0",
-  "publisher": "vigit",
+  "publisher": "xianingxman",
   "engines": {
     "vscode": "^1.85.0"
   },

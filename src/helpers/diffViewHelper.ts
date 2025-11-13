@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import { promises as fs } from 'fs';
 import { CommitFileChange, GitService } from '../services/gitService';
 
 export class DiffViewHelper {
@@ -114,6 +115,40 @@ export class DiffViewHelper {
             change.previousPath ?? change.path
         );
 
+        const workspaceFileExists = await DiffViewHelper.fileExists(currentFsPath);
+
+        // Prefer comparing against the workspace copy so the user sees local impact immediately
+        if (workspaceFileExists) {
+            const commitRef = statusCode === 'D' ? parentHash : commitHash;
+            const commitPath = statusCode === 'D' ? previousFsPath : currentFsPath;
+            const commitContent = commitRef
+                ? await gitService.getFileContent(commitPath, commitRef)
+                : '';
+
+            const commitScheme = `vigit-commit-${Date.now()}`;
+            const commitLabel = `${path.basename(change.previousPath ?? change.path)} (${commitHash.substring(0, 7)})`;
+            const commitUri = vscode.Uri.parse(`${commitScheme}:${commitLabel}`);
+            const commitProvider = new DiffContentProvider(commitContent);
+            const commitRegistration = vscode.workspace.registerTextDocumentContentProvider(
+                commitScheme,
+                commitProvider
+            );
+
+            try {
+                await vscode.commands.executeCommand(
+                    'vscode.diff',
+                    commitUri,
+                    vscode.Uri.file(currentFsPath),
+                    `${path.basename(change.path)} (${commitHash.substring(0, 7)} -> Working Tree)`,
+                    { preview: false, viewColumn: vscode.ViewColumn.Active }
+                );
+            } finally {
+                setTimeout(() => commitRegistration.dispose(), 100);
+            }
+            return;
+        }
+
+        // Fall back to the original intra-commit diff (parent vs commit) if the workspace file is missing
         let leftContent = '';
         let rightContent = '';
 
@@ -150,7 +185,7 @@ export class DiffViewHelper {
                 leftUri,
                 rightUri,
                 `${path.basename(change.path)} (${commitHash.substring(0, 7)})`,
-                { preview: false, viewColumn: vscode.ViewColumn.Beside }
+                { preview: false, viewColumn: vscode.ViewColumn.Active }
             );
         } finally {
             setTimeout(() => {
@@ -184,6 +219,15 @@ export class DiffViewHelper {
         } catch (error) {
             console.error('Error showing branch diff:', error);
             throw error;
+        }
+    }
+
+    private static async fileExists(filePath: string): Promise<boolean> {
+        try {
+            await fs.access(filePath);
+            return true;
+        } catch {
+            return false;
         }
     }
 }
