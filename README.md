@@ -1,3 +1,5 @@
+<img width="497" height="208" alt="创建 VGit 插件图标长条" src="https://github.com/user-attachments/assets/ccac79a5-afa3-4f72-893a-f15a4274186f" />
+
 # ViGit Installation Guide
 
 ## Prerequisites
