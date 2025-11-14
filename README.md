@@ -2,6 +2,7 @@
 
 # ViGit Installation Guide
 
+
 ## Prerequisites
 
 Before installing ViGit, ensure you have:
