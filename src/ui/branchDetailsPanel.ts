@@ -444,6 +444,8 @@ export class BranchDetailsPanel implements vscode.WebviewViewProvider, vscode.Di
             font-family: var(--vscode-font-family);
             background: var(--vscode-sideBar-background);
             color: var(--vscode-foreground);
+            overflow: hidden;
+            height: 100vh;
         }
         .branch-panel {
             display: flex;
@@ -471,12 +473,16 @@ export class BranchDetailsPanel implements vscode.WebviewViewProvider, vscode.Di
             flex: 1;
             display: flex;
             min-height: 0;
+            overflow: hidden;
         }
         .commit-list {
-            width: 320px;
+            width: 360px;
+            min-height: 0;
             border-right: 1px solid var(--vscode-panel-border);
-            overflow: auto;
+            overflow-y: auto;
+            overflow-x: hidden;
             background: var(--vscode-sideBar-background);
+            flex-shrink: 0;
         }
         .commit-empty {
             padding: 16px;
@@ -487,41 +493,58 @@ export class BranchDetailsPanel implements vscode.WebviewViewProvider, vscode.Di
             width: 100%;
             border: none;
             background: transparent;
-            padding: 10px 16px;
+            padding: 4px 12px;
             text-align: left;
             display: flex;
             flex-direction: column;
-            gap: 4px;
+            gap: 0;
             cursor: pointer;
-            border-bottom: 1px solid var(--vscode-panel-border);
+            border-bottom: 1px solid transparent;
             color: var(--vscode-sideBar-foreground, var(--vscode-foreground));
+            min-height: 32px;
         }
         .commit-item:hover {
-            background: var(--vscode-list-hoverBackground);
+            background: rgba(255, 255, 255, 0.04);
         }
         .commit-item.selected {
-            background: var(--vscode-list-activeSelectionBackground);
-            color: var(--vscode-list-activeSelectionForeground);
+            background: rgba(38, 119, 168, 0.25);
+            color: var(--vscode-foreground);
         }
         .commit-item.selected .commit-meta {
             color: inherit;
         }
+        .commit-main-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+        }
         .commit-hash {
-            font-weight: 600;
-            font-size: 12px;
+            font-weight: 500;
+            font-size: 11px;
+            flex-shrink: 0;
+            font-family: var(--vscode-editor-font-family, 'Consolas', 'Courier New', monospace);
+            color: #6e97ff;
         }
         .commit-message {
-            font-size: 13px;
+            font-size: 12px;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            flex: 1;
+            min-width: 0;
         }
         .commit-meta {
             font-size: 11px;
-            color: var(--vscode-descriptionForeground);
+            color: #8b8b8b;
             display: flex;
-            gap: 6px;
-            flex-wrap: wrap;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+        .commit-meta-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
         }
         .commit-refs {
             font-size: 10px;
@@ -531,16 +554,19 @@ export class BranchDetailsPanel implements vscode.WebviewViewProvider, vscode.Di
             flex-wrap: wrap;
         }
         .commit-refs span {
-            background: var(--vscode-badge-background);
-            color: var(--vscode-badge-foreground);
+            background: rgba(110, 151, 255, 0.15);
+            color: #6e97ff;
             padding: 2px 6px;
-            border-radius: 4px;
+            border-radius: 3px;
+            font-weight: 500;
         }
         .commit-details {
             flex: 1;
             display: flex;
             flex-direction: column;
             min-width: 0;
+            min-height: 0;
+            overflow: hidden;
         }
         .details-header {
             padding: 10px 16px;
@@ -548,31 +574,46 @@ export class BranchDetailsPanel implements vscode.WebviewViewProvider, vscode.Di
             font-size: 13px;
             display: flex;
             justify-content: space-between;
-            align-items: center;
+            align-items: flex-start;
             gap: 16px;
+            flex-shrink: 0;
+            background: var(--vscode-sideBar-background);
         }
         .selected-hash {
             font-weight: 600;
-            font-size: 14px;
+            font-size: 13px;
+            line-height: 1.4;
         }
         .selected-meta {
-            font-size: 12px;
+            font-size: 11px;
             color: var(--vscode-descriptionForeground);
+            line-height: 1.4;
         }
         .details-body {
             flex: 1;
             display: flex;
             flex-direction: column;
             min-height: 0;
+            overflow: hidden;
+            position: relative;
         }
         .file-tree {
-            flex: 1;
-            overflow: auto;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            overflow-y: auto;
+            overflow-x: auto;
             padding: 12px 16px;
             background: var(--vscode-editor-background);
         }
         .file-empty {
-            flex: 1;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
             display: none;
             flex-direction: column;
             align-items: center;
@@ -593,28 +634,50 @@ export class BranchDetailsPanel implements vscode.WebviewViewProvider, vscode.Di
         }
         .tree-folder > summary {
             cursor: pointer;
-            padding: 4px 0;
-            font-weight: 600;
+            padding: 3px 0;
+            font-weight: 500;
+            font-size: 12px;
+            color: var(--vscode-foreground);
+        }
+        .tree-folder > summary:hover {
+            color: var(--vscode-textLink-foreground);
         }
         .tree-children {
             margin-left: 12px;
-            border-left: 1px dashed var(--vscode-panel-border);
+            border-left: 1px solid var(--vscode-panel-border);
             padding-left: 12px;
         }
         .file-item {
             width: 100%;
             border: none;
             background: transparent;
-            padding: 4px 0;
+            padding: 3px 0;
             display: flex;
             justify-content: space-between;
             align-items: center;
             cursor: pointer;
-            font-size: 13px;
+            font-size: 12px;
             color: inherit;
         }
-        .file-item:hover {
-            color: var(--vscode-list-activeSelectionForeground);
+        .file-item:focus,
+        .file-item:active,
+        .file-item:focus-visible {
+            outline: none;
+            background: transparent;
+            box-shadow: none;
+        }
+        .file-item.status-added .file-label {
+            color: #2db36b;
+        }
+        .file-item.status-modified .file-label {
+            color: #3a78f2;
+        }
+        .file-item.status-deleted .file-label {
+            color: #9aa0a6;
+        }
+        .file-item.status-renamed .file-label,
+        .file-item.status-copied .file-label {
+            color: #7e57c2;
         }
         .file-label {
             flex: 1;
@@ -625,26 +688,25 @@ export class BranchDetailsPanel implements vscode.WebviewViewProvider, vscode.Di
         }
         .status-badge {
             font-size: 10px;
-            border-radius: 999px;
-            padding: 2px 8px;
+            border-radius: 3px;
+            padding: 2px 6px;
             margin-left: 12px;
             text-transform: uppercase;
+            font-weight: 500;
+            background: transparent;
+            border: 1px solid currentColor;
         }
         .status-added {
-            background: rgba(81, 161, 81, 0.2);
-            color: #5fb760;
+            color: #2db36b;
         }
         .status-modified {
-            background: rgba(255, 196, 37, 0.2);
-            color: #ffca3e;
+            color: #3a78f2;
         }
         .status-deleted {
-            background: rgba(255, 84, 84, 0.2);
-            color: #ff5a5a;
+            color: #9aa0a6;
         }
         .status-renamed, .status-copied {
-            background: rgba(86, 156, 214, 0.2);
-            color: #56afde;
+            color: #7e57c2;
         }
         .header-actions button {
             border: 1px solid var(--vscode-button-border, transparent);
@@ -800,20 +862,32 @@ export class BranchDetailsPanel implements vscode.WebviewViewProvider, vscode.Di
                         item.classList.add('selected');
                     }
 
+                    const mainRow = document.createElement('div');
+                    mainRow.className = 'commit-main-row';
+
                     const hash = document.createElement('div');
                     hash.className = 'commit-hash';
                     hash.textContent = commit.abbrevHash;
-                    item.appendChild(hash);
+                    mainRow.appendChild(hash);
 
                     const message = document.createElement('div');
                     message.className = 'commit-message';
                     message.textContent = commit.message;
-                    item.appendChild(message);
+                    mainRow.appendChild(message);
 
                     const meta = document.createElement('div');
                     meta.className = 'commit-meta';
-                    meta.textContent = commit.author + ' · ' + formatDate(commit.date);
-                    item.appendChild(meta);
+                    const authorItem = document.createElement('span');
+                    authorItem.className = 'commit-meta-item';
+                    authorItem.textContent = commit.author;
+                    meta.appendChild(authorItem);
+                    const dateItem = document.createElement('span');
+                    dateItem.className = 'commit-meta-item';
+                    dateItem.textContent = formatDate(commit.date);
+                    meta.appendChild(dateItem);
+                    mainRow.appendChild(meta);
+
+                    item.appendChild(mainRow);
 
                     item.addEventListener('click', () => selectCommit(commit));
                     item.addEventListener('contextmenu', (event) => {
@@ -959,14 +1033,14 @@ export class BranchDetailsPanel implements vscode.WebviewViewProvider, vscode.Di
                         renderTreeNodes(node.children, childContainer, commit, depth + 1);
                     } else {
                         const button = document.createElement('button');
-                        button.className = 'file-item';
+                        const statusClass = mapStatusClass(node.change.status);
+                        button.className = 'file-item ' + statusClass;
                         const label = document.createElement('span');
                         label.className = 'file-label';
                         label.textContent = node.name;
                         button.appendChild(label);
                         const badge = new DocumentFragment();
                         const span = document.createElement('span');
-                        const statusClass = mapStatusClass(node.change.status);
                         span.className = 'status-badge ' + statusClass;
                         span.textContent = mapStatusLabel(node.change.status);
                         badge.appendChild(span);

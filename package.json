@@ -4,6 +4,10 @@
   "description": "Experience JetBrains IDEA's powerful Git version control in VSCode",
   "version": "1.0.0",
   "publisher": "xianingxman",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/18068800343/vigit.git"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },

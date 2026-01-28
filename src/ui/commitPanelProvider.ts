@@ -1,4 +1,4 @@
-import * as vscode from 'vscode';
+﻿import * as vscode from 'vscode';
 import * as path from 'path';
 import { GitService, GitStatus } from '../services/gitService';
 import { ChangelistManager, Changelist } from '../managers/changelistManager';
@@ -473,6 +473,13 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
     <style>
         :root {
             color-scheme: var(--vscode-color-scheme);
+            --vigit-border: var(--vscode-panel-border);
+            --vigit-muted: var(--vscode-descriptionForeground);
+            --vigit-surface: var(--vscode-editorWidget-background, var(--vscode-sideBar-background));
+            --vigit-surface-alt: var(--vscode-sideBarSectionHeader-background, var(--vscode-sideBar-background));
+            --vigit-hover: var(--vscode-list-hoverBackground);
+            --vigit-selection: var(--vscode-list-activeSelectionBackground);
+            --vigit-tree-line: var(--vscode-editorIndentGuide-background, var(--vscode-panel-border));
         }
         body {
             margin: 0;
@@ -491,29 +498,40 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 12px;
-            border-bottom: 1px solid var(--vscode-panel-border);
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--vigit-border);
             gap: 12px;
+            background: var(--vigit-surface-alt);
         }
-        .panel-header h2 {
-            margin: 0;
-            font-size: 14px;
+        .header-title {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            min-width: 0;
+        }
+        .header-title strong {
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.2px;
         }
         .panel-header p {
-            margin: 2px 0 0;
-            color: var(--vscode-descriptionForeground);
-            font-size: 12px;
+            margin: 0;
+            color: var(--vigit-muted);
+            font-size: 11px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .header-actions {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 10px;
         }
         .header-actions button {
             border: 1px solid var(--vscode-button-border, transparent);
             background: var(--vscode-button-secondaryBackground);
             color: var(--vscode-button-secondaryForeground);
-            border-radius: 3px;
+            border-radius: 4px;
             padding: 4px 10px;
             cursor: pointer;
         }
@@ -524,9 +542,10 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
         .content {
             flex: 1;
             overflow: auto;
+            background: var(--vigit-surface);
         }
         .group {
-            border-bottom: 1px solid var(--vscode-panel-border);
+            border-bottom: 1px solid var(--vigit-border);
         }
         .group.collapsed .group-files,
         .group.collapsed .group-empty {
@@ -536,11 +555,12 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 8px 12px;
-            background: var(--vscode-sideBar-background);
+            padding: 6px 12px;
+            background: var(--vigit-surface-alt);
             cursor: pointer;
             user-select: none;
             gap: 8px;
+            border-top: 1px solid var(--vigit-border);
         }
         .group-header-left {
             display: flex;
@@ -562,53 +582,84 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
             transform: rotate(-90deg);
         }
         .group-title {
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .group-title.active {
             color: var(--vscode-textLink-activeForeground);
         }
         .group-description {
-            color: var(--vscode-descriptionForeground);
+            color: var(--vigit-muted);
             font-size: 11px;
         }
         .group-files {
             display: flex;
             flex-direction: column;
+            padding: 4px 0 6px;
         }
-        .file-row {
+        .tree-node {
+            display: flex;
+            flex-direction: column;
+        }
+        .tree-node.collapsed > .tree-children {
+            display: none;
+        }
+        .tree-row {
             display: grid;
             grid-template-columns: auto auto 1fr auto;
             align-items: center;
             gap: 6px;
-            padding: 3px 12px;
-            border-top: 1px solid var(--vscode-panel-border);
-            cursor: pointer;
+            padding: 2px 12px;
             min-height: 26px;
+            cursor: pointer;
+            border-radius: 4px;
+            margin: 1px 6px;
         }
-        .file-row:hover {
-            background: var(--vscode-list-hoverBackground);
+        .tree-row:hover {
+            background: var(--vigit-hover);
         }
-        .file-row.selected {
-            background: var(--vscode-list-activeSelectionBackground);
+        .tree-row.selected {
+            background: var(--vigit-selection);
         }
-        .file-row input[type=\"checkbox\"] {
+        .tree-row input[type="checkbox"] {
             margin: 0;
         }
-        .status {
-            width: 20px;
-            height: 20px;
-            border-radius: 3px;
-            text-align: center;
-            line-height: 20px;
-            font-size: 11px;
-            font-weight: bold;
-            color: var(--vscode-sideBar-background);
+        .tree-toggle {
+            width: 16px;
+            height: 16px;
+            border: none;
+            background: transparent;
+            padding: 0;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
-        .status-M { background: #4fc3f7; }
-        .status-D { background: #ef5350; }
-        .status-U { background: #ffb74d; color: #000; }
-        .status-R { background: #7e57c2; }
+        .tree-toggle::before {
+            content: '';
+            display: block;
+            width: 0;
+            height: 0;
+            border-style: solid;
+            border-width: 4px 0 4px 6px;
+            border-color: transparent transparent transparent var(--vscode-foreground);
+            transform: rotate(90deg);
+            transition: transform 0.1s ease-out;
+        }
+        .tree-node.collapsed > .tree-row .tree-toggle::before {
+            transform: rotate(0deg);
+        }
+        .tree-toggle.placeholder::before {
+            border-width: 0;
+        }
+        .tree-children {
+            margin-left: 14px;
+            padding-left: 8px;
+            border-left: 1px solid var(--vigit-tree-line);
+        }
         .file-info {
             display: flex;
             flex-direction: column;
@@ -616,35 +667,71 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
             min-width: 0;
         }
         .file-name {
-            font-size: 13px;
+            font-size: 12px;
             white-space: nowrap;
             text-overflow: ellipsis;
             overflow: hidden;
         }
+        .file-name.status-M { color: #3a78f2; }
+        .file-name.status-D { color: #9aa0a6; }
+        .file-name.status-U { color: #2db36b; }
+        .file-name.status-R { color: #7e57c2; }
         .file-path {
             font-size: 11px;
-            color: var(--vscode-descriptionForeground);
+            color: var(--vigit-muted);
             white-space: nowrap;
             text-overflow: ellipsis;
             overflow: hidden;
+        }
+        .file-meta {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            font-size: 10px;
+            color: var(--vigit-muted);
+        }
+        .staged-badge {
+            padding: 1px 6px;
+            border-radius: 10px;
+            background: rgba(46, 164, 79, 0.2);
+            color: #2ea44f;
+            font-weight: 600;
+        }
+        .file-actions {
+            display: flex;
+            gap: 4px;
+            opacity: 1 !important;
+            visibility: visible;
+            pointer-events: auto;
         }
         .file-actions button {
             border: 1px solid transparent;
             background: transparent;
             color: var(--vscode-textLink-foreground);
             cursor: pointer;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+        .file-actions button:hover {
+            background: var(--vigit-hover);
+        }
+        .folder-meta {
+            font-size: 11px;
+            color: var(--vigit-muted);
+            margin-left: 6px;
         }
         .group-empty {
             padding: 6px 12px;
             font-size: 12px;
-            color: var(--vscode-descriptionForeground);
+            color: var(--vigit-muted);
         }
         .message-section {
-            border-top: 1px solid var(--vscode-panel-border);
-            padding: 12px;
+            border-top: 1px solid var(--vigit-border);
+            padding: 10px 12px;
             display: flex;
             flex-direction: column;
             gap: 8px;
+            background: var(--vigit-surface-alt);
         }
         .message-toolbar {
             display: flex;
@@ -652,9 +739,10 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
             align-items: center;
         }
         .message-toolbar span {
-            font-size: 12px;
+            font-size: 11px;
             text-transform: uppercase;
-            color: var(--vscode-descriptionForeground);
+            color: var(--vigit-muted);
+            letter-spacing: 0.4px;
         }
         .message-actions {
             display: flex;
@@ -680,7 +768,7 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
         .button-row button {
             border-radius: 4px;
             border: none;
-            padding: 8px 16px;
+            padding: 7px 14px;
             cursor: pointer;
             font-weight: 500;
         }
@@ -702,7 +790,7 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
         .empty-state {
             padding: 24px;
             text-align: center;
-            color: var(--vscode-descriptionForeground);
+            color: var(--vigit-muted);
         }
         .context-menu {
             position: fixed;
@@ -711,7 +799,7 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
             padding: 4px 0;
             background: var(--vscode-editorWidget-background, var(--vscode-sideBar-background));
             color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
-            border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border));
+            border: 1px solid var(--vscode-editorWidget-border, var(--vigit-border));
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
             border-radius: 4px;
             display: none;
@@ -726,15 +814,15 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
             white-space: nowrap;
         }
         .context-menu__item:hover {
-            background: var(--vscode-list-hoverBackground);
+            background: var(--vigit-hover);
         }
         .context-menu__item:active {
-            background: var(--vscode-list-activeSelectionBackground);
+            background: var(--vigit-selection);
         }
         .context-menu__separator {
             height: 1px;
             margin: 4px 0;
-            background: var(--vscode-panel-border);
+            background: var(--vigit-border);
         }
         .context-menu__item.disabled {
             opacity: 0.5;
@@ -745,7 +833,8 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
 <body>
     <div class="panel">
         <div class="panel-header">
-            <div>
+            <div class="header-title">
+                <strong>Commit</strong>
                 <p id="changelistLabel">No changelist selected</p>
             </div>
             <div class="header-actions">
@@ -771,7 +860,7 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
             </div>
         </div>
     </div>
-﻿    <script nonce="${nonce}">
+    <script nonce="${nonce}">
         (function() {
             const vscode = acquireVsCodeApi();
             const groupContainer = document.getElementById('groupContainer');
@@ -799,6 +888,7 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
                 changelist: null,
                 autoFilledFromAmend: false,
                 collapsedGroups: new Set(),
+                collapsedFolders: new Set(),
                 autoSelectEnabled: true
             };
 
@@ -823,6 +913,9 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
               if (Array.isArray(persisted.collapsedGroups)) {
                   state.collapsedGroups = new Set(persisted.collapsedGroups);
               }
+              if (Array.isArray(persisted.collapsedFolders)) {
+                  state.collapsedFolders = new Set(persisted.collapsedFolders);
+              }
 
               const persistState = () => {
                   vscode.setState({
@@ -830,6 +923,7 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
                       commitMessage: state.commitMessage,
                       amend: state.amend,
                       collapsedGroups: Array.from(state.collapsedGroups),
+                      collapsedFolders: Array.from(state.collapsedFolders),
                       autoSelectEnabled: state.autoSelectEnabled
                   });
               };
@@ -925,7 +1019,7 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
                 hideContextMenu();
             });
             document.addEventListener('contextmenu', event => {
-                if (event.target && (event.target.closest('.context-menu') || event.target.closest('.file-row'))) {
+                if (event.target && (event.target.closest('.context-menu') || event.target.closest('.tree-row'))) {
                     return;
                 }
                 hideContextMenu();
@@ -950,7 +1044,7 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
                 historyPicker.disabled = state.busy || state.history.length === 0;
             };
 
-            const renderGroups = () => {
+                        const renderGroups = () => {
                 hideContextMenu();
                 groupContainer.innerHTML = '';
                 if (!state.groups.length) {
@@ -963,82 +1057,194 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
                     updateButtons();
                     return;
                 }
-
                 const fragment = document.createDocumentFragment();
-                  state.groups.forEach(group => {
-                      const section = document.createElement('div');
-                      section.className = 'group';
-                      section.dataset.groupId = group.id;
-                      const isCollapsed = state.collapsedGroups.has(group.id);
-                      if (isCollapsed) {
-                          section.classList.add('collapsed');
-                      }
-  
-                      const header = document.createElement('div');
-                      header.className = 'group-header';
-                      const headerLeft = document.createElement('div');
-                      headerLeft.className = 'group-header-left';
-                      const collapseIcon = document.createElement('span');
-                      collapseIcon.className = 'group-collapse-icon';
-                      headerLeft.appendChild(collapseIcon);
-  
-                      const title = document.createElement('div');
-                      title.className = 'group-title';
-                      title.textContent = group.label;
-                      if (group.active) {
-                          title.classList.add('active');
-                      }
-                      headerLeft.appendChild(title);
-                      header.appendChild(headerLeft);
-  
-                      if (group.description) {
-                          const desc = document.createElement('div');
-                          desc.className = 'group-description';
-                          desc.textContent = group.description;
-                          header.appendChild(desc);
-                      }
-
-                      header.addEventListener('click', () => {
-                          if (state.collapsedGroups.has(group.id)) {
-                              state.collapsedGroups.delete(group.id);
-                          } else {
-                              state.collapsedGroups.add(group.id);
-                          }
-                          persistState();
-                          renderGroups();
-                      });
-  
-                      section.appendChild(header);
-  
-                      if (group.files && group.files.length > 0) {
-                          const list = document.createElement('div');
-                          list.className = 'group-files';
-                          group.files.forEach(file => list.appendChild(renderFileRow(file)));
-                          section.appendChild(list);
-                      } else {
-                          const emptyGroup = document.createElement('div');
-                          emptyGroup.className = 'group-empty';
-                          emptyGroup.textContent = 'No files';
-                          section.appendChild(emptyGroup);
-                      }
-  
-                      fragment.appendChild(section);
-                  });
-
+                state.groups.forEach(group => {
+                    const section = document.createElement('div');
+                    section.className = 'group';
+                    section.dataset.groupId = group.id;
+                    const isCollapsed = state.collapsedGroups.has(group.id);
+                    if (isCollapsed) {
+                        section.classList.add('collapsed');
+                    }
+                    const header = document.createElement('div');
+                    header.className = 'group-header';
+                    const headerLeft = document.createElement('div');
+                    headerLeft.className = 'group-header-left';
+                    const collapseIcon = document.createElement('span');
+                    collapseIcon.className = 'group-collapse-icon';
+                    headerLeft.appendChild(collapseIcon);
+                    const title = document.createElement('div');
+                    title.className = 'group-title';
+                    title.textContent = group.label;
+                    if (group.active) {
+                        title.classList.add('active');
+                    }
+                    headerLeft.appendChild(title);
+                    header.appendChild(headerLeft);
+                    if (group.description) {
+                        const desc = document.createElement('div');
+                        desc.className = 'group-description';
+                        desc.textContent = group.description;
+                        header.appendChild(desc);
+                    }
+                    header.addEventListener('click', () => {
+                        if (state.collapsedGroups.has(group.id)) {
+                            state.collapsedGroups.delete(group.id);
+                        } else {
+                            state.collapsedGroups.add(group.id);
+                        }
+                        persistState();
+                        renderGroups();
+                    });
+                    section.appendChild(header);
+                    if (group.files && group.files.length > 0) {
+                        const list = document.createElement('div');
+                        list.className = 'group-files';
+                        const tree = buildTree(group.files);
+                        renderTreeNodes(tree, list, group.id);
+                        section.appendChild(list);
+                    } else {
+                        const emptyGroup = document.createElement('div');
+                        emptyGroup.className = 'group-empty';
+                        emptyGroup.textContent = 'No files';
+                        section.appendChild(emptyGroup);
+                    }
+                    fragment.appendChild(section);
+                });
                 groupContainer.appendChild(fragment);
                 updateSelectAll();
                 updateButtons();
             };
 
+            const buildTree = files => {
+                const root = new Map();
+                files.forEach(file => {
+                    const parts = (file.relativePath || file.fileName || '').split('/').filter(Boolean);
+                    if (!parts.length) {
+                        return;
+                    }
+                    let level = root;
+                    parts.forEach((part, index) => {
+                        const isLeaf = index === parts.length - 1;
+                        if (isLeaf) {
+                            level.set(part, { type: 'file', file });
+                            return;
+                        }
+                        if (!level.has(part)) {
+                            level.set(part, {
+                                type: 'folder',
+                                name: part,
+                                path: parts.slice(0, index + 1).join('/'),
+                                children: new Map()
+                            });
+                        }
+                        const node = level.get(part);
+                        level = node.children;
+                    });
+                });
+                return root;
+            };
+            const sortTreeEntries = entries => {
+                return Array.from(entries).sort((a, b) => {
+                    const aNode = a[1];
+                    const bNode = b[1];
+                    if (aNode.type !== bNode.type) {
+                        return aNode.type === 'folder' ? -1 : 1;
+                    }
+                    return a[0].localeCompare(b[0]);
+                });
+            };
+            const collectFilePaths = node => {
+                if (node.type === 'file') {
+                    return [node.file.absolutePath];
+                }
+                const result = [];
+                node.children.forEach(child => {
+                    collectFilePaths(child).forEach(path => result.push(path));
+                });
+                return result;
+            };
+            const renderTreeNodes = (nodes, container, groupId) => {
+                sortTreeEntries(nodes.entries()).forEach(entry => {
+                    const node = entry[1];
+                    if (node.type === 'folder') {
+                        const folderKey = groupId + ':' + node.path;
+                        const filePaths = collectFilePaths(node);
+                        const total = filePaths.length;
+                        const selectedCount = filePaths.filter(path => state.selected.has(path)).length;
+                        const isCollapsed = state.collapsedFolders.has(folderKey);
+                        const wrapper = document.createElement('div');
+                        wrapper.className = 'tree-node' + (isCollapsed ? ' collapsed' : '');
+                        const row = document.createElement('div');
+                        row.className = 'tree-row';
+                        const toggle = document.createElement('button');
+                        toggle.className = 'tree-toggle';
+                        toggle.type = 'button';
+                        toggle.addEventListener('click', event => {
+                            event.stopPropagation();
+                            if (state.collapsedFolders.has(folderKey)) {
+                                state.collapsedFolders.delete(folderKey);
+                            } else {
+                                state.collapsedFolders.add(folderKey);
+                            }
+                            persistState();
+                            renderGroups();
+                        });
+                        row.appendChild(toggle);
+                        const checkbox = document.createElement('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.checked = total > 0 && selectedCount === total;
+                        checkbox.indeterminate = selectedCount > 0 && selectedCount < total;
+                        checkbox.addEventListener('change', event => {
+                            event.stopPropagation();
+                            setSelection(filePaths, checkbox.checked);
+                        });
+                        row.appendChild(checkbox);
+                        const name = document.createElement('div');
+                        name.className = 'file-info';
+                        const title = document.createElement('div');
+                        title.className = 'file-name';
+                        title.textContent = node.name;
+                        name.appendChild(title);
+                        row.appendChild(name);
+                        const meta = document.createElement('div');
+                        meta.className = 'folder-meta';
+                        meta.textContent = total + ' file' + (total === 1 ? '' : 's');
+                        row.appendChild(meta);
+                        row.addEventListener('click', event => {
+                            const target = event.target;
+                            if (target instanceof HTMLInputElement || target instanceof HTMLButtonElement) {
+                                return;
+                            }
+                            if (state.collapsedFolders.has(folderKey)) {
+                                state.collapsedFolders.delete(folderKey);
+                            } else {
+                                state.collapsedFolders.add(folderKey);
+                            }
+                            persistState();
+                            renderGroups();
+                        });
+                        wrapper.appendChild(row);
+                        const children = document.createElement('div');
+                        children.className = 'tree-children';
+                        renderTreeNodes(node.children, children, groupId);
+                        wrapper.appendChild(children);
+                        container.appendChild(wrapper);
+                        return;
+                    }
+                    container.appendChild(renderFileRow(node.file));
+                });
+            };
             const renderFileRow = file => {
                 const row = document.createElement('div');
-                row.className = 'file-row';
-
+                row.className = 'tree-row file-row';
                 const isSelected = state.selected.has(file.absolutePath);
                 if (isSelected) {
                     row.classList.add('selected');
                 }
-
+                const toggle = document.createElement('span');
+                toggle.className = 'tree-toggle placeholder';
+                row.appendChild(toggle);
                 const checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
                 checkbox.checked = isSelected;
@@ -1047,18 +1253,11 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
                     toggleSelection(file.absolutePath, checkbox.checked);
                 });
                 row.appendChild(checkbox);
-
-                const status = document.createElement('span');
                 const statusCode = file.statusCode || 'M';
-                status.className = 'status status-' + statusCode;
-                status.textContent = statusCode;
-                status.title = file.statusLabel || '';
-                row.appendChild(status);
-
                 const info = document.createElement('div');
                 info.className = 'file-info';
                 const name = document.createElement('div');
-                name.className = 'file-name';
+                name.className = 'file-name status-' + statusCode;
                 name.textContent = file.fileName;
                 info.appendChild(name);
                 const path = document.createElement('div');
@@ -1067,15 +1266,25 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
                 if (file.directory) {
                     segments.push(file.directory);
                 }
-                if (file.changelistName) {
-                    segments.push(file.changelistName);
+                if (file.renamedFrom) {
+                    segments.push('renamed from ' + file.renamedFrom);
                 }
-                path.textContent = segments.join(' · ');
+                path.textContent = segments.join(' / ');
                 info.appendChild(path);
+                if (file.staged) {
+                    const meta = document.createElement('div');
+                    meta.className = 'file-meta';
+                    const badge = document.createElement('span');
+                    badge.className = 'staged-badge';
+                    badge.textContent = 'STAGED';
+                    meta.appendChild(badge);
+                    info.appendChild(meta);
+                }
                 row.appendChild(info);
-
                 const actions = document.createElement('div');
                 actions.className = 'file-actions';
+                actions.style.opacity = '1';
+                actions.style.visibility = 'visible';
                 const diffButton = document.createElement('button');
                 diffButton.type = 'button';
                 diffButton.textContent = 'Diff';
@@ -1085,7 +1294,6 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
                 });
                 actions.appendChild(diffButton);
                 row.appendChild(actions);
-
                 row.addEventListener('click', event => {
                     const target = event.target;
                     if (target instanceof HTMLInputElement || target instanceof HTMLButtonElement) {
@@ -1093,17 +1301,14 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
                     }
                     toggleSelection(file.absolutePath, !state.selected.has(file.absolutePath));
                 });
-
                 row.addEventListener('dblclick', () => {
                     vscode.postMessage({ type: 'openDiff', payload: { file: file.absolutePath } });
                 });
-
                 row.addEventListener('contextmenu', event => {
                     event.preventDefault();
                     event.stopPropagation();
                     showContextMenu(file, event.clientX, event.clientY);
                 });
-
                 return row;
             };
 
@@ -1114,6 +1319,19 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
                 } else {
                     state.selected.delete(filePath);
                 }
+                persistState();
+                renderGroups();
+            };
+
+            const setSelection = (filePaths, selected) => {
+                state.autoSelectEnabled = false;
+                filePaths.forEach(path => {
+                    if (selected) {
+                        state.selected.add(path);
+                    } else {
+                        state.selected.delete(path);
+                    }
+                });
                 persistState();
                 renderGroups();
             };
@@ -1282,6 +1500,12 @@ export class CommitPanelProvider implements vscode.WebviewViewProvider, vscode.D
         return result;
     }
 }
+
+
+
+
+
+
 
 
 

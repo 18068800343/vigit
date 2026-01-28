@@ -3,13 +3,17 @@ import { GitService, GitBranch } from '../services/gitService';
 
 export class BranchTreeItem extends vscode.TreeItem {
     constructor(
-        public readonly label: string,
+        public label: string,
         public readonly collapsibleState: vscode.TreeItemCollapsibleState,
         public readonly branch?: GitBranch,
         public readonly isCategory: boolean = false,
-        public readonly categoryType?: 'local' | 'remote'
+        public readonly categoryType?: 'local' | 'remote',
+        public readonly remoteName?: string,
+        private readonly padding: string = ''
     ) {
-        super(label, collapsibleState);
+        const displayLabel = padding ? `${padding}${label}` : label;
+        super(displayLabel, collapsibleState);
+        this.label = displayLabel;
         
         if (branch) {
             this.contextValue = branch.remote ? 'branchRemote' : 'branchLocal';
@@ -78,7 +82,7 @@ export class BranchesProvider implements vscode.TreeDataProvider<BranchTreeItem>
     private branches: GitBranch[] = [];
     private workspaceRoot: string;
     private gitService: GitService;
-
+    private readonly childIconPadding = '   ';
     constructor(workspaceRoot: string, gitService: GitService) {
         this.workspaceRoot = workspaceRoot;
         this.gitService = gitService;
@@ -101,29 +105,71 @@ export class BranchesProvider implements vscode.TreeDataProvider<BranchTreeItem>
     async getChildren(element?: BranchTreeItem): Promise<BranchTreeItem[]> {
         if (element) {
             if (element.isCategory) {
-                // Show branches in this category
-                const isLocal = element.categoryType === 'local';
-                const branches = this.branches.filter(b => 
-                    isLocal ? !b.remote : b.remote
-                );
-                
-                return branches.map(branch => {
-                    const displayName = branch.remote 
-                        ? branch.name.replace('remotes/', '')
-                        : branch.name;
-                    
-                    const tracking = this.formatTracking(branch);
-                    const labelCore = branch.current 
-                        ? `${displayName} (current)`
-                        : displayName;
-                    const label = tracking ? `${labelCore} ${tracking}` : labelCore;
+                if (element.categoryType === 'local') {
+                    const branches = this.branches
+                        .filter(b => !b.remote)
+                        .sort((a, b) => {
+                            if (a.current !== b.current) {
+                                return a.current ? -1 : 1;
+                            }
+                            return a.name.localeCompare(b.name);
+                        });
 
-                    return new BranchTreeItem(
-                        label,
-                        vscode.TreeItemCollapsibleState.None,
-                        branch
-                    );
-                });
+                    return branches.map(branch => {
+                        const tracking = this.formatTracking(branch);
+                        const labelCore = branch.current
+                            ? `${branch.name} (current)`
+                            : branch.name;
+                        const label = tracking ? `${labelCore} ${tracking}` : labelCore;
+
+                        return new BranchTreeItem(
+                            label,
+                            vscode.TreeItemCollapsibleState.None,
+                            branch,
+                            false,
+                            undefined,
+                            undefined,
+                            this.childIconPadding
+                        );
+                    });
+                }
+
+                if (element.categoryType === 'remote' && !element.remoteName) {
+                    const remotes = this.getRemoteGroups();
+                    return remotes.map(remote => new BranchTreeItem(
+                        remote,
+                        vscode.TreeItemCollapsibleState.Expanded,
+                        undefined,
+                        true,
+                        'remote',
+                        remote,
+                        this.childIconPadding
+                    ));
+                }
+
+                if (element.categoryType === 'remote' && element.remoteName) {
+                    const branches = this.branches
+                        .filter(b => b.remote)
+                        .filter(b => this.getRemoteName(b.name) === element.remoteName)
+                        .sort((a, b) => {
+                            const aShort = this.getRemoteBranchName(a.name);
+                            const bShort = this.getRemoteBranchName(b.name);
+                            return aShort.localeCompare(bShort);
+                        });
+
+                    return branches.map(branch => {
+                        const displayName = this.getRemoteBranchName(branch.name);
+                        return new BranchTreeItem(
+                            displayName,
+                            vscode.TreeItemCollapsibleState.None,
+                            branch,
+                            false,
+                            undefined,
+                            undefined,
+                            this.childIconPadding
+                        );
+                    });
+                }
             }
             return [];
         }
@@ -176,6 +222,29 @@ export class BranchesProvider implements vscode.TreeDataProvider<BranchTreeItem>
 
         return parts.length > 0 ? `[${parts.join(' ')}]` : '';
     }
+
+    private getRemoteName(fullName: string): string {
+        const stripped = fullName.replace(/^remotes\//, '');
+        const index = stripped.indexOf('/');
+        return index === -1 ? stripped : stripped.slice(0, index);
+    }
+
+    private getRemoteBranchName(fullName: string): string {
+        const stripped = fullName.replace(/^remotes\//, '');
+        const index = stripped.indexOf('/');
+        return index === -1 ? stripped : stripped.slice(index + 1);
+    }
+
+    private getRemoteGroups(): string[] {
+        const set = new Set<string>();
+        this.branches.forEach(branch => {
+            if (branch.remote) {
+                set.add(this.getRemoteName(branch.name));
+            }
+        });
+        return Array.from(set).sort((a, b) => a.localeCompare(b));
+    }
+
 }
 
 

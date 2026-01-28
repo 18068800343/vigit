@@ -11,6 +11,7 @@ export class DiffViewHelper {
         options?: { viewColumn?: vscode.ViewColumn; preview?: boolean }
     ): Promise<void> {
         try {
+            await DiffViewHelper.ensureDiffEditorConfig();
             const fileName = path.basename(filePath);
             const workspaceRoot = gitService.getWorkspaceRoot();
             const relativePath = path.relative(workspaceRoot, filePath);
@@ -107,8 +108,11 @@ export class DiffViewHelper {
         parentHash: string | undefined,
         change: CommitFileChange
     ): Promise<void> {
+        await DiffViewHelper.ensureDiffEditorConfig();
         const statusCode = change.status.charAt(0);
         const workspaceRoot = gitService.getWorkspaceRoot();
+        const normalizedChangePath = change.path.replace(/\\/g, '/');
+        const normalizedPreviousPath = (change.previousPath ?? change.path).replace(/\\/g, '/');
         const currentFsPath = path.join(workspaceRoot, change.path);
         const previousFsPath = path.join(
             workspaceRoot,
@@ -126,8 +130,10 @@ export class DiffViewHelper {
                 : '';
 
             const commitScheme = `vigit-commit-${Date.now()}`;
-            const commitLabel = `${path.basename(change.previousPath ?? change.path)} (${commitHash.substring(0, 7)})`;
-            const commitUri = vscode.Uri.parse(`${commitScheme}:${commitLabel}`);
+            const commitUri = vscode.Uri.from({
+                scheme: commitScheme,
+                path: `/${statusCode === 'D' ? normalizedPreviousPath : normalizedChangePath}`
+            });
             const commitProvider = new DiffContentProvider(commitContent);
             const commitRegistration = vscode.workspace.registerTextDocumentContentProvider(
                 commitScheme,
@@ -170,8 +176,14 @@ export class DiffViewHelper {
         const leftScheme = `vigit-commit-left-${Date.now()}`;
         const rightScheme = `vigit-commit-right-${Date.now()}`;
 
-        const leftUri = vscode.Uri.parse(`${leftScheme}:${leftLabel}`);
-        const rightUri = vscode.Uri.parse(`${rightScheme}:${rightLabel}`);
+        const leftUri = vscode.Uri.from({
+            scheme: leftScheme,
+            path: `/${statusCode === 'A' ? normalizedChangePath : normalizedPreviousPath}`
+        });
+        const rightUri = vscode.Uri.from({
+            scheme: rightScheme,
+            path: `/${normalizedChangePath}`
+        });
 
         const leftProvider = new DiffContentProvider(leftContent);
         const rightProvider = new DiffContentProvider(rightContent);
@@ -228,6 +240,29 @@ export class DiffViewHelper {
             return true;
         } catch {
             return false;
+        }
+    }
+
+    private static async ensureDiffEditorConfig(): Promise<void> {
+        try {
+            const config = vscode.workspace.getConfiguration('diffEditor');
+            const updates: Thenable<void>[] = [];
+            const ensure = (key: string, value: boolean) => {
+                if (config.get<boolean>(key) !== value) {
+                    updates.push(config.update(key, value, vscode.ConfigurationTarget.Workspace));
+                }
+            };
+
+            ensure('renderIndicators', true);
+            ensure('renderMarginRevertIcon', true);
+            ensure('showMoves', true);
+            ensure('renderSideBySide', true);
+
+            if (updates.length > 0) {
+                await Promise.all(updates);
+            }
+        } catch (error) {
+            console.warn('Unable to update diff editor settings', error);
         }
     }
 }
