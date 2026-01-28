@@ -9,16 +9,22 @@ export class BranchTreeItem extends vscode.TreeItem {
         public readonly isCategory: boolean = false,
         public readonly categoryType?: 'local' | 'remote',
         public readonly remoteName?: string,
-        private readonly padding: string = ''
+        private readonly useInlineIcon: boolean = false,
+        private readonly inlinePadding: string = ''
     ) {
-        const displayLabel = padding ? `${padding}${label}` : label;
+        let displayLabel = label;
+        if (useInlineIcon) {
+            displayLabel = BranchTreeItem.getInlineLabel(label, branch, isCategory, inlinePadding);
+        }
         super(displayLabel, collapsibleState);
         this.label = displayLabel;
         
         if (branch) {
             this.contextValue = branch.remote ? 'branchRemote' : 'branchLocal';
             this.tooltip = this.createTooltip();
-            this.iconPath = this.getIcon();
+            if (!useInlineIcon) {
+                this.iconPath = this.getIcon();
+            }
             this.command = {
                 command: 'vigit.showBranchDetails',
                 title: 'Show Branch History',
@@ -26,8 +32,39 @@ export class BranchTreeItem extends vscode.TreeItem {
             };
         } else if (isCategory) {
             this.contextValue = 'category';
-            this.iconPath = new vscode.ThemeIcon('folder');
+            if (!useInlineIcon) {
+                this.iconPath = new vscode.ThemeIcon('folder');
+            }
         }
+    }
+
+    private static getInlineLabel(
+        label: string,
+        branch?: GitBranch,
+        isCategory?: boolean,
+        padding: string = ''
+    ): string {
+        const iconId = BranchTreeItem.getIconId(branch, isCategory);
+        if (!iconId) {
+            return label;
+        }
+        return `${padding}$(${iconId}) ${label}`;
+    }
+
+    private static getIconId(branch?: GitBranch, isCategory?: boolean): string | undefined {
+        if (isCategory) {
+            return 'folder';
+        }
+        if (!branch) {
+            return 'git-branch';
+        }
+        if (branch.current) {
+            return 'check';
+        }
+        if (branch.remote) {
+            return 'cloud';
+        }
+        return 'git-branch';
     }
 
     private createTooltip(): string {
@@ -82,7 +119,7 @@ export class BranchesProvider implements vscode.TreeDataProvider<BranchTreeItem>
     private branches: GitBranch[] = [];
     private workspaceRoot: string;
     private gitService: GitService;
-    private readonly childIconPadding = '   ';
+    private readonly childIconPadding = ' ';
     constructor(workspaceRoot: string, gitService: GitService) {
         this.workspaceRoot = workspaceRoot;
         this.gitService = gitService;
@@ -125,11 +162,7 @@ export class BranchesProvider implements vscode.TreeDataProvider<BranchTreeItem>
                         return new BranchTreeItem(
                             label,
                             vscode.TreeItemCollapsibleState.None,
-                            branch,
-                            false,
-                            undefined,
-                            undefined,
-                            this.childIconPadding
+                            branch
                         );
                     });
                 }
@@ -142,8 +175,7 @@ export class BranchesProvider implements vscode.TreeDataProvider<BranchTreeItem>
                         undefined,
                         true,
                         'remote',
-                        remote,
-                        this.childIconPadding
+                        remote
                     ));
                 }
 
@@ -162,11 +194,7 @@ export class BranchesProvider implements vscode.TreeDataProvider<BranchTreeItem>
                         return new BranchTreeItem(
                             displayName,
                             vscode.TreeItemCollapsibleState.None,
-                            branch,
-                            false,
-                            undefined,
-                            undefined,
-                            this.childIconPadding
+                            branch
                         );
                     });
                 }

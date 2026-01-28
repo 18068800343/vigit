@@ -53,5 +53,5 @@ All notable changes to the "vigit" extension will be documented in this file.
 - Comprehensive branch management
 - Context menus for quick actions
 - Activity bar integration
-
+测试
 
