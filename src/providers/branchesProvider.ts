@@ -119,6 +119,8 @@ export class BranchesProvider implements vscode.TreeDataProvider<BranchTreeItem>
     private branches: GitBranch[] = [];
     private workspaceRoot: string;
     private gitService: GitService;
+    // 子节点左侧留白，使图标距离边缘更远（约 50px）
+    // 保持整体左边距，但减小图标与文字间距（缩短前置空格）
     private readonly childIconPadding = ' ';
     constructor(workspaceRoot: string, gitService: GitService) {
         this.workspaceRoot = workspaceRoot;
@@ -159,8 +161,9 @@ export class BranchesProvider implements vscode.TreeDataProvider<BranchTreeItem>
                             : branch.name;
                         const label = tracking ? `${labelCore} ${tracking}` : labelCore;
 
+                        const paddedLabel = `${this.childIconPadding}${label}`;
                         return new BranchTreeItem(
-                            label,
+                            paddedLabel,
                             vscode.TreeItemCollapsibleState.None,
                             branch
                         );
@@ -170,7 +173,7 @@ export class BranchesProvider implements vscode.TreeDataProvider<BranchTreeItem>
                 if (element.categoryType === 'remote' && !element.remoteName) {
                     const remotes = this.getRemoteGroups();
                     return remotes.map(remote => new BranchTreeItem(
-                        remote,
+                        `${this.childIconPadding}${remote}`,
                         vscode.TreeItemCollapsibleState.Expanded,
                         undefined,
                         true,
@@ -191,8 +194,9 @@ export class BranchesProvider implements vscode.TreeDataProvider<BranchTreeItem>
 
                     return branches.map(branch => {
                         const displayName = this.getRemoteBranchName(branch.name);
+                        const paddedLabel = `${this.childIconPadding}${displayName}`;
                         return new BranchTreeItem(
-                            displayName,
+                            paddedLabel,
                             vscode.TreeItemCollapsibleState.None,
                             branch
                         );
@@ -274,5 +278,3 @@ export class BranchesProvider implements vscode.TreeDataProvider<BranchTreeItem>
     }
 
 }
-
-

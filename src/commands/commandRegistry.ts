@@ -51,6 +51,7 @@ export class CommandRegistry {
         this.commitDialog = commitDialog;
         this.branchDetailsPanel = branchDetailsPanel;
         this.pushDialog = pushDialog;
+        void this.ensureTreeIndent();
     }
 
     registerAllCommands(): void {
@@ -131,6 +132,21 @@ export class CommandRegistry {
         this.register('vigit.unstashChanges', () => this.unstashChanges());
         this.register('vigit.manageRemotes', () => this.manageRemotes());
         this.register('vigit.cloneRepository', () => this.cloneRepository());
+    }
+
+    /**
+     * 调高树视图缩进，让左下角 Branches 图标距离左边至少约 50px。
+     */
+    private async ensureTreeIndent(): Promise<void> {
+        try {
+            const config = vscode.workspace.getConfiguration('workbench');
+            const current = config.get<number>('tree.indent', 8);
+            if (current < 50) {
+                await config.update('tree.indent', 50, vscode.ConfigurationTarget.Global);
+            }
+        } catch (error) {
+            console.warn('ViGit: unable to update workbench.tree.indent', error);
+        }
     }
 
     private register(command: string, callback: (...args: any[]) => any): void {
